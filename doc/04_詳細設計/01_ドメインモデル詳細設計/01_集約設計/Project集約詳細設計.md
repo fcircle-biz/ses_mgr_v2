@@ -43,6 +43,10 @@ public class Project {
     
     // === 営業情報 ===
     private SalesRepresentativeId salesRepId;
+    
+    // === パフォーマンス最適化: 遅延ローディング対応 ===
+    @Lazy
+    @OneToMany(mappedBy = "project", fetch = FetchType.LAZY)
     private List<Proposal> proposals;
     
     // === 監査情報 ===
@@ -146,9 +150,51 @@ public class Project {
                this.requirement.isCompatibleWith(engineer.getSkillSet());
     }
     
+    /**
+     * 推定売上計算 - より洗練されたロジック
+     * リスク係数、マージン率、期間係数を考慮
+     */
     public Money calculateEstimatedRevenue() {
-        return this.budget.getMaxAmount()
+        Money baseRevenue = this.budget.getMaxAmount()
             .multiply(this.requirement.getEstimatedPersonMonths());
+        
+        // リスク係数適用（案件の複雑度・顧客信用度等）
+        double riskFactor = calculateRiskFactor();
+        Money adjustedRevenue = baseRevenue.multiply(riskFactor);
+        
+        // マージン率適用（直請：15%、一次：10%、二次：5%）
+        double marginRate = this.businessFlow.getMarginRate();
+        
+        // 通貨一貫性チェック
+        if (!this.budget.getCurrency().equals(baseRevenue.getCurrency())) {
+            throw new BusinessRuleViolationException("予算と売上の通貨が一致しません");
+        }
+        
+        return adjustedRevenue.multiply(1.0 + marginRate);
+    }
+    
+    /**
+     * リスク係数計算
+     */
+    private double calculateRiskFactor() {
+        double factor = 1.0;
+        
+        // 案件規模によるリスク調整
+        if (this.requirement.getEstimatedPersonMonths() > 24) {
+            factor *= 0.95; // 大規模案件はリスク高
+        }
+        
+        // 技術スタックの複雑度
+        if (this.requirement.hasComplexTechnologies()) {
+            factor *= 0.9;
+        }
+        
+        // 新規顧客かどうか
+        if (this.customerId.isNewCustomer()) {
+            factor *= 0.92;
+        }
+        
+        return Math.max(factor, 0.8); // 最小80%保証
     }
 }
 ```

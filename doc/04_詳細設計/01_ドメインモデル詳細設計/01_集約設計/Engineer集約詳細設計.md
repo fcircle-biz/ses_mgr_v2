@@ -124,33 +124,23 @@ public class Engineer {
     }
     
     /**
-     * マッチングスコア算出
-     * Project集約の要件との適合度を算出
+     * マッチングスコア算出（簡素化版 - 複雑ロジックはドメインサービスに委譲）
      */
     public MatchingScore calculateMatchingScore(RequiredSkills requiredSkills) {
-        // スキル適合度 (40%)
-        float skillCompatibility = skillSet.calculateCompatibility(requiredSkills);
-        
-        // 経験適合度 (25%)
-        float experienceCompatibility = calculateExperienceCompatibility(requiredSkills);
-        
-        // 稼働可能性 (20%)
-        float availabilityScore = calculateAvailabilityScore();
-        
-        // 過去実績 (15%)
-        float performanceScore = calculatePerformanceScore(requiredSkills);
-        
-        float totalScore = (skillCompatibility * 0.4f) + 
-                          (experienceCompatibility * 0.25f) + 
-                          (availabilityScore * 0.2f) + 
-                          (performanceScore * 0.15f);
-        
-        return new MatchingScore(
-            totalScore,
-            skillCompatibility,
-            experienceCompatibility,
-            availabilityScore,
-            performanceScore
+        // 複雑なマッチングロジックはEngineerMatchingDomainServiceに委譲
+        return EngineerMatchingDomainService.calculateScore(this, requiredSkills);
+    }
+    
+    /**
+     * マッチングに必要な基本データを提供
+     */
+    public EngineerMatchingData getMatchingData() {
+        return new EngineerMatchingData(
+            this.skillSet,
+            this.totalExperienceYears,
+            this.workStatus,
+            this.projectExperiences,
+            this.rating
         );
     }
     
