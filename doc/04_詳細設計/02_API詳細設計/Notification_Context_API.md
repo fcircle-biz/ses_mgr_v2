@@ -2133,27 +2133,140 @@ components:
         empty:
           type: boolean
 
-    # エラーレスポンス
+    # ==================== エラーレスポンス（強化版） ====================
     ErrorResponse:
       type: object
+      required:
+        - timestamp
+        - status
+        - errorCode
+        - message
+        - correlationId
+        - severity
       properties:
         timestamp:
           type: string
           format: date-time
+          description: エラー発生時刻
         status:
           type: integer
+          description: HTTPステータスコード
+        errorCode:
+          type: string
+          description: エラーコード（例：NOTIFICATION_DELIVERY_FAILED、TEMPLATE_NOT_FOUND）
+          enum:
+            # Notification固有エラー
+            - NOTIFICATION_NOT_FOUND
+            - NOTIFICATION_DELIVERY_FAILED
+            - TEMPLATE_NOT_FOUND
+            - TEMPLATE_COMPILATION_FAILED
+            - CHANNEL_NOT_AVAILABLE
+            - RECIPIENT_INVALID
+            - SLACK_API_ERROR
+            - EMAIL_SEND_FAILED
+            - PUSH_NOTIFICATION_FAILED
+            - SMS_SEND_FAILED
+            - NOTIFICATION_RULE_VIOLATION
+            - DELIVERY_RETRY_EXHAUSTED
+            - MESSAGE_SIZE_LIMIT_EXCEEDED
+            - RATE_LIMIT_EXCEEDED
+            - WEBHOOK_VALIDATION_FAILED
+            # 共通エラー
+            - VALIDATION_ERROR
+            - BUSINESS_RULE_VIOLATION
+            - ENTITY_NOT_FOUND
+            - ACCESS_DENIED
+            - EXTERNAL_SERVICE_ERROR
+            - SYSTEM_ERROR
         error:
           type: string
+          description: エラー種別
         message:
           type: string
+          description: 技術者向けエラーメッセージ
+        userMessage:
+          type: string
+          description: エンドユーザー向けメッセージ
         path:
           type: string
-        details:
+          description: リクエストパス
+        correlationId:
+          type: string
+          format: uuid
+          description: 相関ID（ログ追跡用）
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: 重要度レベル
+        retryable:
+          type: boolean
+          description: リトライ可能フラグ
+        context:
+          type: object
+          additionalProperties: true
+          description: エラーコンテキスト情報
+        validationErrors:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/ValidationError'
+          description: バリデーションエラー詳細
+        stackTrace:
+          type: string
+          description: スタックトレース（開発環境のみ）
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: エラーフィールド名
+        code:
+          type: string
+          description: エラーコード
+        message:
+          type: string
+          description: エラーメッセージ
+        rejectedValue:
+          type: object
+          description: 拒否された値
+
+    # ビジネスルール違反エラー
+    BusinessRuleViolationError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            ruleName:
+              type: string
+              description: 違反したルール名
+            aggregateType:
+              type: string
+              description: 集約タイプ
+            aggregateId:
+              type: string
+              description: 集約ID
+
+    # 外部サービスエラー
+    ExternalServiceError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            serviceName:
+              type: string
+              description: 外部サービス名
+            operation:
+              type: string
+              description: 実行操作
+            externalErrorCode:
+              type: string
+              description: 外部サービスのエラーコード
+            retryAfter:
+              type: integer
+              description: リトライまでの秒数
 
   responses:
+    # 400番台エラー
     BadRequest:
       description: 不正なリクエスト
       content:
@@ -2162,14 +2275,14 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     
     Unauthorized:
-      description: 認証が必要
+      description: 認証エラー
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     
     Forbidden:
-      description: アクセス権限なし
+      description: 権限エラー
       content:
         application/json:
           schema:
@@ -2187,14 +2300,43 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: '#/components/schemas/BusinessRuleViolationError'
     
-    InternalServerError:
-      description: サーバー内部エラー
+    UnprocessableEntity:
+      description: 処理不可能なエンティティ
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    
+    # 500番台エラー
+    InternalServerError:
+      description: 内部サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    BadGateway:
+      description: 外部サービス連携エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExternalServiceError'
+    
+    ServiceUnavailable:
+      description: サービス利用不可
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    GatewayTimeout:
+      description: ゲートウェイタイムアウト
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExternalServiceError'
 ```
 
 ## 6. Spring Boot実装例

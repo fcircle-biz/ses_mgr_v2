@@ -3065,6 +3065,13 @@ components:
 
     ErrorResponse:
       type: object
+      required:
+        - timestamp
+        - status
+        - errorCode
+        - message
+        - correlationId
+        - severity
       properties:
         timestamp:
           type: string
@@ -3073,27 +3080,125 @@ components:
         status:
           type: integer
           description: HTTPステータスコード
+        errorCode:
+          type: string
+          description: エラーコード（例：BILLING_NOT_FOUND、MONEYFORWARD_API_ERROR）
         error:
           type: string
           description: エラー種別
         message:
           type: string
-          description: エラーメッセージ
+          description: 技術者向けエラーメッセージ
+        userMessage:
+          type: string
+          description: エンドユーザー向けメッセージ
         path:
           type: string
           description: リクエストパス
+        correlationId:
+          type: string
+          format: uuid
+          description: 相関ID（ログ追跡用）
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: 重要度レベル
+        retryable:
+          type: boolean
+          description: リトライ可能フラグ
+        context:
+          type: object
+          additionalProperties: true
+          description: エラーコンテキスト情報
         validationErrors:
           type: array
           items:
-            type: object
-            properties:
-              field:
-                type: string
-              message:
-                type: string
+            $ref: '#/components/schemas/ValidationError'
           description: バリデーションエラー詳細
+        stackTrace:
+          type: string
+          description: スタックトレース（開発環境のみ）
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: エラーフィールド名
+        code:
+          type: string
+          description: エラーコード
+        message:
+          type: string
+          description: エラーメッセージ
+        rejectedValue:
+          type: object
+          description: 拒否された値
+
+    # Billing Context固有エラースキーマ
+    BillingBusinessRuleViolationError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            ruleName:
+              type: string
+              description: 違反したルール名
+            aggregateType:
+              type: string
+              description: 集約タイプ（Invoice、Payment等）
+            aggregateId:
+              type: string
+              description: 集約ID
+            billingContext:
+              type: object
+              properties:
+                invoiceId:
+                  type: string
+                  format: uuid
+                paymentId:
+                  type: string
+                  format: uuid
+                customerId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                  format: decimal
+                currency:
+                  type: string
+
+    # 外部サービス連携エラー（MoneyForward用）
+    BillingExternalServiceError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            serviceName:
+              type: string
+              description: 外部サービス名
+              enum: [MoneyForward, TaxCalculationService, BankAPI]
+            operation:
+              type: string
+              description: 実行操作
+            externalErrorCode:
+              type: string
+              description: 外部サービスのエラーコード
+            retryAfter:
+              type: integer
+              description: リトライまでの秒数
+            billingOperationContext:
+              type: object
+              properties:
+                invoiceId:
+                  type: string
+                accountingEntryType:
+                  type: string
+                taxCalculationType:
+                  type: string
 
   responses:
+    # 400番台エラー
     BadRequest:
       description: 不正なリクエスト
       content:
@@ -3122,12 +3227,48 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
+    Conflict:
+      description: リソースの競合・ビジネスルール違反
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BillingBusinessRuleViolationError'
+
+    UnprocessableEntity:
+      description: 処理不可能なエンティティ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    # 500番台エラー
     InternalServerError:
       description: 内部サーバーエラー
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+
+    BadGateway:
+      description: 外部サービス連携エラー（MoneyForward等）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BillingExternalServiceError'
+
+    ServiceUnavailable:
+      description: サービス利用不可
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    GatewayTimeout:
+      description: ゲートウェイタイムアウト
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BillingExternalServiceError'
 ```
 
 ## 3. Spring Boot 実装例
@@ -3944,6 +4085,250 @@ public class PaymentReconciliationService {
 - MoneyForward同期エラー率アラート
 - 異常な請求金額検知
 - 与信限度額超過アラート
+
+---
+
+## 10. Billing Context固有エラーコード定義
+
+### 10.1 ドメインエラーコード
+```yaml
+# Billing集約固有エラー
+BillingDomainErrors:
+  # 請求書関連
+  - INVOICE_NOT_FOUND
+  - INVOICE_ALREADY_ISSUED
+  - INVOICE_AMOUNT_INVALID
+  - INVOICE_STATUS_TRANSITION_INVALID
+  - BILLING_PERIOD_INVALID
+  - TAX_CALCULATION_ERROR
+  - CURRENCY_CONVERSION_ERROR
+  
+  # 支払関連
+  - PAYMENT_NOT_FOUND
+  - PAYMENT_AMOUNT_MISMATCH
+  - PAYMENT_ALREADY_PROCESSED
+  - PAYMENT_DEADLINE_EXCEEDED
+  - BANK_ACCOUNT_INVALID
+  - RECONCILIATION_FAILED
+  
+  # MoneyForward連携
+  - MONEYFORWARD_API_ERROR
+  - MONEYFORWARD_AUTH_FAILED
+  - MONEYFORWARD_RATE_LIMIT_EXCEEDED
+  - MONEYFORWARD_SYNC_FAILED
+  - ACCOUNTING_ENTRY_CREATION_FAILED
+  
+  # 与信・債権管理
+  - CREDIT_LIMIT_EXCEEDED
+  - OVERDUE_PAYMENT_DETECTED
+  - CUSTOMER_CREDIT_CHECK_FAILED
+  - DEBT_COLLECTION_REQUIRED
+```
+
+### 10.2 外部API連携エラー処理詳細化
+
+#### MoneyForward API エラーハンドリング
+```yaml
+MoneyForwardAPIErrors:
+  # 認証・認可エラー
+  - code: MF_AUTH_TOKEN_EXPIRED
+    status: 401
+    severity: MEDIUM
+    retryable: true
+    retryStrategy: "token_refresh"
+    
+  - code: MF_RATE_LIMIT_EXCEEDED
+    status: 429
+    severity: LOW
+    retryable: true
+    retryAfter: 300
+    retryStrategy: "exponential_backoff"
+    
+  # データ整合性エラー
+  - code: MF_ACCOUNT_CODE_INVALID
+    status: 400
+    severity: HIGH
+    retryable: false
+    requiresManualIntervention: true
+    
+  - code: MF_DUPLICATE_TRANSACTION
+    status: 409
+    severity: MEDIUM
+    retryable: false
+    reconciliationRequired: true
+
+# 税計算サービスエラー
+TaxCalculationServiceErrors:
+  - code: TAX_RATE_NOT_FOUND
+    status: 404
+    severity: HIGH
+    retryable: false
+    fallbackStrategy: "use_default_rate"
+    
+  - code: TAX_CALCULATION_TIMEOUT
+    status: 504
+    severity: MEDIUM
+    retryable: true
+    timeoutMs: 30000
+
+# 銀行API連携エラー
+BankAPIErrors:
+  - code: BANK_API_UNAVAILABLE
+    status: 503
+    severity: HIGH
+    retryable: true
+    maxRetries: 3
+    
+  - code: ACCOUNT_BALANCE_FETCH_FAILED
+    status: 502
+    severity: MEDIUM
+    retryable: true
+    fallbackStrategy: "use_cached_balance"
+```
+
+### 10.3 請求データ整合性チェック強化
+
+#### データ整合性検証ルール
+```yaml
+BillingDataIntegrityChecks:
+  # 金額整合性
+  invoice_amount_validation:
+    rules:
+      - name: "amount_positive_check"
+        condition: "invoice.totalAmount > 0"
+        errorCode: "INVOICE_AMOUNT_INVALID"
+        severity: "HIGH"
+        
+      - name: "currency_consistency_check"
+        condition: "invoice.currency == contract.currency"
+        errorCode: "CURRENCY_MISMATCH"
+        severity: "MEDIUM"
+        
+      - name: "tax_calculation_verification"
+        condition: "calculated_tax == invoice.taxAmount"
+        errorCode: "TAX_CALCULATION_ERROR"
+        severity: "HIGH"
+        
+  # 期間整合性
+  billing_period_validation:
+    rules:
+      - name: "period_overlap_check"
+        condition: "no_overlapping_periods_for_contract"
+        errorCode: "BILLING_PERIOD_OVERLAP"
+        severity: "HIGH"
+        
+      - name: "work_hours_consistency"
+        condition: "billed_hours <= approved_work_hours"
+        errorCode: "WORK_HOURS_MISMATCH"
+        severity: "CRITICAL"
+
+  # 支払整合性
+  payment_validation:
+    rules:
+      - name: "payment_amount_match"
+        condition: "payment.amount == invoice.totalAmount"
+        errorCode: "PAYMENT_AMOUNT_MISMATCH"
+        severity: "HIGH"
+        tolerance: 1.0  # 1円の誤差まで許容
+        
+      - name: "duplicate_payment_check"
+        condition: "no_duplicate_payments_for_invoice"
+        errorCode: "DUPLICATE_PAYMENT_DETECTED"
+        severity: "CRITICAL"
+```
+
+### 10.4 強化されたエラーレスポンス例
+
+#### MoneyForward API連携エラー例
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 502,
+  "errorCode": "MONEYFORWARD_API_ERROR",
+  "error": "External Service Error",
+  "message": "MoneyForward API呼び出しに失敗しました: 勘定科目コードが無効です",
+  "userMessage": "会計システムとの連携で問題が発生しました。経理担当者にお問い合わせください。",
+  "path": "/api/v1/invoices/123/accounting-entry",
+  "correlationId": "h69ce31d-7aee-6594-c789-2g24d4e5f691",
+  "severity": "HIGH",
+  "retryable": false,
+  "context": {
+    "serviceName": "MoneyForward",
+    "operation": "createAccountingEntry",
+    "externalErrorCode": "INVALID_ACCOUNT_CODE",
+    "billingOperationContext": {
+      "invoiceId": "123",
+      "accountingEntryType": "SALES_INVOICE",
+      "accountCode": "4101"
+    }
+  }
+}
+```
+
+#### 請求データ整合性エラー例
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 409,
+  "errorCode": "WORK_HOURS_MISMATCH",
+  "error": "Business Rule Violation",
+  "message": "請求工数が承認済み工数を超過しています",
+  "userMessage": "請求する工数が承認された工数を超えています。工数表を確認してください。",
+  "path": "/api/v1/invoices",
+  "correlationId": "i7ad42e-8bff-7605-d890-3h35e5f6g802",
+  "severity": "CRITICAL",
+  "retryable": false,
+  "context": {
+    "ruleName": "work_hours_consistency",
+    "aggregateType": "Invoice",
+    "aggregateId": "456",
+    "billingContext": {
+      "contractId": "789",
+      "billingPeriod": "2025-05",
+      "billedHours": 180.0,
+      "approvedHours": 160.0,
+      "excessHours": 20.0
+    }
+  },
+  "validationErrors": [
+    {
+      "field": "workHours",
+      "code": "WORK_HOURS_EXCEEDED",
+      "message": "請求工数180時間が承認済み工数160時間を超過",
+      "rejectedValue": 180.0
+    }
+  ]
+}
+```
+
+#### 与信限度額超過エラー例
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 409,
+  "errorCode": "CREDIT_LIMIT_EXCEEDED",
+  "error": "Business Rule Violation",
+  "message": "顧客の与信限度額を超過するため請求書を発行できません",
+  "userMessage": "与信限度額を超過しています。営業担当者にお問い合わせください。",
+  "path": "/api/v1/invoices",
+  "correlationId": "j8be53f-9cgg-8716-e901-4i46f6g7h913",
+  "severity": "HIGH",
+  "retryable": false,
+  "context": {
+    "ruleName": "credit_limit_check",
+    "aggregateType": "Invoice",
+    "billingContext": {
+      "customerId": "customer-001",
+      "currentOutstanding": 2500000,
+      "creditLimit": 3000000,
+      "newInvoiceAmount": 800000,
+      "projectedOutstanding": 3300000,
+      "excessAmount": 300000,
+      "currency": "JPY"
+    }
+  }
+}
+```
 
 ---
 

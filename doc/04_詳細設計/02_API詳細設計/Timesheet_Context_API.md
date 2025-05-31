@@ -169,11 +169,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          description: 同一期間の工数表が既に存在
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -272,11 +268,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 編集不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -305,11 +297,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 削除不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -398,11 +386,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 編集不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -487,11 +471,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 編集不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -527,11 +507,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 削除不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -608,11 +584,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 編集不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -653,11 +625,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 提出不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -697,11 +665,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 承認不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -741,11 +705,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 差し戻し不可能な状態
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2897,8 +2857,16 @@ components:
           format: date-time
           description: 最終更新日時
 
+    # ==================== Error Responses ====================
     ErrorResponse:
       type: object
+      required:
+        - timestamp
+        - status
+        - errorCode
+        - message
+        - correlationId
+        - severity
       properties:
         timestamp:
           type: string
@@ -2907,27 +2875,98 @@ components:
         status:
           type: integer
           description: HTTPステータスコード
+        errorCode:
+          type: string
+          description: エラーコード（例：TIMESHEET_NOT_FOUND、APPROVAL_WORKFLOW_INVALID）
         error:
           type: string
           description: エラー種別
         message:
           type: string
-          description: エラーメッセージ
+          description: 技術者向けエラーメッセージ
+        userMessage:
+          type: string
+          description: エンドユーザー向けメッセージ
         path:
           type: string
           description: リクエストパス
+        correlationId:
+          type: string
+          format: uuid
+          description: 相関ID（ログ追跡用）
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: 重要度レベル
+        retryable:
+          type: boolean
+          description: リトライ可能フラグ
+        context:
+          type: object
+          additionalProperties: true
+          description: エラーコンテキスト情報
         validationErrors:
           type: array
           items:
-            type: object
-            properties:
-              field:
-                type: string
-              message:
-                type: string
+            $ref: '#/components/schemas/ValidationError'
           description: バリデーションエラー詳細
+        stackTrace:
+          type: string
+          description: スタックトレース（開発環境のみ）
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: エラーフィールド名
+        code:
+          type: string
+          description: エラーコード
+        message:
+          type: string
+          description: エラーメッセージ
+        rejectedValue:
+          type: object
+          description: 拒否された値
+
+    # ビジネスルール違反エラー
+    BusinessRuleViolationError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            ruleName:
+              type: string
+              description: 違反したルール名
+            aggregateType:
+              type: string
+              description: 集約タイプ
+            aggregateId:
+              type: string
+              description: 集約ID
+
+    # 外部サービスエラー
+    ExternalServiceError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            serviceName:
+              type: string
+              description: 外部サービス名
+            operation:
+              type: string
+              description: 実行操作
+            externalErrorCode:
+              type: string
+              description: 外部サービスのエラーコード
+            retryAfter:
+              type: integer
+              description: リトライまでの秒数
 
   responses:
+    # 400番台エラー
     BadRequest:
       description: 不正なリクエスト
       content:
@@ -2956,12 +2995,48 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
+    Conflict:
+      description: リソースの競合
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BusinessRuleViolationError'
+
+    UnprocessableEntity:
+      description: 処理不可能なエンティティ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    # 500番台エラー
     InternalServerError:
       description: 内部サーバーエラー
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+
+    BadGateway:
+      description: 外部サービス連携エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExternalServiceError'
+
+    ServiceUnavailable:
+      description: サービス利用不可
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    GatewayTimeout:
+      description: ゲートウェイタイムアウト
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExternalServiceError'
 ```
 
 ## 3. Spring Boot 実装例
@@ -3520,6 +3595,151 @@ public class TimesheetApplicationService {
 - 健康リスクレベル到達アラート
 - 承認遅延アラート
 - システム異常アラート
+
+## 8. Timesheet Context 固有エラーコード
+
+### 8.1 ドメイン固有エラー定義
+
+```yaml
+# Timesheet集約固有エラー
+TimesheetDomainErrors:
+  - TIMESHEET_NOT_FOUND                    # 工数表が見つからない
+  - TIMESHEET_ALREADY_EXISTS               # 同一期間の工数表が既に存在
+  - TIMESHEET_STATUS_TRANSITION_INVALID    # 不正なステータス遷移
+  - APPROVAL_WORKFLOW_INVALID              # 承認ワークフローエラー
+  - ATTENDANCE_VALIDATION_FAILED           # 勤怠データバリデーション失敗
+  - SUBMISSION_DEADLINE_EXCEEDED           # 提出期限超過
+  - APPROVAL_DEADLINE_EXCEEDED             # 承認期限超過
+  - OVERTIME_LIMIT_EXCEEDED                # 残業時間上限超過
+  - CONSECUTIVE_WORK_DAYS_EXCEEDED         # 連続勤務日数超過
+  - LEGAL_WORKING_HOURS_EXCEEDED           # 法定労働時間超過
+  - NIGHT_WORK_LIMIT_EXCEEDED              # 深夜労働時間超過
+  - HEALTH_RISK_LEVEL_DETECTED             # 健康リスクレベル検出
+  - SPECIAL_WORK_APPROVAL_REQUIRED         # 特殊勤務承認必要
+  - TEMPLATE_NOT_FOUND                     # テンプレートが見つからない
+  - BULK_CREATION_FAILED                   # 一括作成失敗
+  - EXPORT_GENERATION_FAILED               # エクスポート生成失敗
+  - FILE_SIZE_LIMIT_EXCEEDED               # ファイルサイズ制限超過
+```
+
+### 8.2 ファイルサイズ制限詳細
+
+```yaml
+# ファイルサイズ制限定義
+FileSizeLimits:
+  attachment:
+    maxSize: "10MB"                        # 添付ファイル最大サイズ
+    allowedTypes: ["pdf", "xlsx", "png", "jpg", "jpeg"]
+  export:
+    excel:
+      maxRows: 100000                      # Excel出力最大行数
+      maxSize: "50MB"                      # Excel最大ファイルサイズ
+    pdf:
+      maxPages: 1000                       # PDF最大ページ数
+      maxSize: "20MB"                      # PDF最大ファイルサイズ
+  bulkImport:
+    maxSize: "5MB"                         # 一括インポート最大サイズ
+    maxRecords: 10000                      # 一括処理最大レコード数
+```
+
+### 8.3 エラーレスポンス例
+
+#### ビジネスルール違反例（残業時間超過）
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 409,
+  "errorCode": "OVERTIME_LIMIT_EXCEEDED",
+  "error": "Business Rule Violation",
+  "message": "月間残業時間が上限を超過しています（実績: 85時間、上限: 80時間）",
+  "userMessage": "残業時間が法定上限を超過しています。勤務時間を調整してください。",
+  "path": "/api/v1/timesheets/123/attendances",
+  "correlationId": "a47bc10b-58cc-4372-a567-0e02b2c3d479",
+  "severity": "HIGH",
+  "retryable": false,
+  "context": {
+    "timesheetId": "123",
+    "currentOvertimeHours": 85,
+    "overtimeLimit": 80,
+    "period": "2025-06",
+    "engineerId": "456",
+    "healthRiskLevel": "HIGH"
+  },
+  "ruleName": "MonthlyOvertimeLimit",
+  "aggregateType": "Timesheet",
+  "aggregateId": "123"
+}
+```
+
+#### 承認ワークフローエラー例
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 409,
+  "errorCode": "APPROVAL_WORKFLOW_INVALID",
+  "error": "Business Rule Violation",
+  "message": "承認ワークフローが無効です。技術者による提出が必要です。",
+  "userMessage": "この工数表はまだ提出されていません。先に技術者による提出を行ってください。",
+  "path": "/api/v1/timesheets/123/approve",
+  "correlationId": "b58cd21c-69dd-5483-b678-1f13c3d4e580",
+  "severity": "MEDIUM",
+  "retryable": false,
+  "context": {
+    "timesheetId": "123",
+    "currentStatus": "DRAFT",
+    "requiredStatus": "SUBMITTED",
+    "approverRole": "PM",
+    "workflowStep": "ENGINEER_APPROVAL"
+  },
+  "ruleName": "ApprovalWorkflowOrder",
+  "aggregateType": "Timesheet",
+  "aggregateId": "123"
+}
+```
+
+#### ファイルサイズ制限超過例
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 413,
+  "errorCode": "FILE_SIZE_LIMIT_EXCEEDED",
+  "error": "Payload Too Large",
+  "message": "添付ファイルサイズが制限を超過しています（ファイルサイズ: 15MB、制限: 10MB）",
+  "userMessage": "添付ファイルのサイズが大きすぎます。10MB以下のファイルをアップロードしてください。",
+  "path": "/api/v1/timesheets/123/attachments",
+  "correlationId": "c69de32d-7aee-6594-c789-2e24d4e5f691",
+  "severity": "LOW",
+  "retryable": true,
+  "context": {
+    "fileName": "timesheet_attachment.pdf",
+    "fileSize": 15728640,
+    "sizeLimit": 10485760,
+    "allowedTypes": ["pdf", "xlsx", "png", "jpg", "jpeg"]
+  }
+}
+```
+
+#### エクスポート生成失敗例
+```json
+{
+  "timestamp": "2025-06-01T23:30:00Z",
+  "status": 500,
+  "errorCode": "EXPORT_GENERATION_FAILED",
+  "error": "Internal Server Error",
+  "message": "レポートエクスポート生成に失敗しました",
+  "userMessage": "レポートの生成中にエラーが発生しました。しばらく後に再試行してください。",
+  "path": "/api/v1/timesheets/export",
+  "correlationId": "d7aef43e-8bff-7605-d89a-3f35e5f6g802",
+  "severity": "MEDIUM",
+  "retryable": true,
+  "context": {
+    "exportFormat": "EXCEL",
+    "recordCount": 50000,
+    "estimatedSize": "45MB",
+    "processingTimeMs": 120000
+  }
+}
+```
 
 ---
 
