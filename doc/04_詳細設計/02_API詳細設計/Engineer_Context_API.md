@@ -1478,6 +1478,13 @@ components:
 
     ErrorResponse:
       type: object
+      required:
+        - timestamp
+        - status
+        - errorCode
+        - message
+        - correlationId
+        - severity
       properties:
         timestamp:
           type: string
@@ -1486,25 +1493,72 @@ components:
         status:
           type: integer
           description: HTTPステータスコード
+        errorCode:
+          type: string
+          description: エラーコード
+          example: ENGINEER_NOT_AVAILABLE
         error:
           type: string
           description: エラー種別
         message:
           type: string
-          description: エラーメッセージ
+          description: 技術者向けエラーメッセージ
+        userMessage:
+          type: string
+          description: エンドユーザー向けメッセージ
         path:
           type: string
           description: リクエストパス
+        correlationId:
+          type: string
+          format: uuid
+          description: 相関ID（ログ追跡用）
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: 重要度レベル
+        retryable:
+          type: boolean
+          description: リトライ可能フラグ
+        context:
+          type: object
+          additionalProperties: true
+          description: エラーコンテキスト情報
         validationErrors:
           type: array
           items:
-            type: object
-            properties:
-              field:
-                type: string
-              message:
-                type: string
+            $ref: '#/components/schemas/ValidationError'
           description: バリデーションエラー詳細
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: エラーフィールド名
+        code:
+          type: string
+          description: エラーコード
+        message:
+          type: string
+          description: エラーメッセージ
+        rejectedValue:
+          type: object
+          description: 拒否された値
+
+    # Engineer集約固有エラー
+    EngineerBusinessRuleError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            engineerId:
+              type: string
+              format: uuid
+              description: 対象技術者ID
+            currentStatus:
+              type: string
+              description: 現在のステータス
 
   responses:
     BadRequest:
@@ -1513,6 +1567,18 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation_error:
+              summary: バリデーションエラー
+              value:
+                timestamp: "2025-06-01T23:30:00Z"
+                status: 400
+                errorCode: "SKILL_LEVEL_INVALID"
+                message: "スキルレベルと経験年数に整合性がありません"
+                userMessage: "入力されたスキルレベルが経験年数と一致しません"
+                correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                severity: "LOW"
+                retryable: false
 
     Unauthorized:
       description: 認証エラー
@@ -1534,6 +1600,41 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            engineer_not_found:
+              summary: 技術者が見つからない
+              value:
+                timestamp: "2025-06-01T23:30:00Z"
+                status: 404
+                errorCode: "ENGINEER_NOT_FOUND"
+                message: "指定された技術者が見つかりません"
+                userMessage: "技術者情報が見つかりません"
+                correlationId: "g58bd20c-69dd-5483-b678-1f13c3d4e580"
+                severity: "MEDIUM"
+                retryable: false
+
+    Conflict:
+      description: ビジネスルール違反
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EngineerBusinessRuleError'
+          examples:
+            engineer_not_available:
+              summary: 技術者稼働不可
+              value:
+                timestamp: "2025-06-01T23:30:00Z"
+                status: 409
+                errorCode: "ENGINEER_NOT_AVAILABLE"
+                message: "技術者は現在稼働不可です"
+                userMessage: "選択された技術者は現在利用できません"
+                correlationId: "h69ce30d-70ee-6594-c789-2g24d4e5f691"
+                severity: "MEDIUM"
+                retryable: false
+                context:
+                  engineerId: "123e4567-e89b-12d3-a456-426614174000"
+                  currentStatus: "WORKING"
+                  availableFrom: "2025-07-01"
 
     InternalServerError:
       description: 内部サーバーエラー
