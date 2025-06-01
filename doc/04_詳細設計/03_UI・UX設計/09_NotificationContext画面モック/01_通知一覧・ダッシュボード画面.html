@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知一覧・ダッシュボード - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --notification-email: #0ea5e9;
+            --notification-slack: #4a154b;
+            --notification-push: #059669;
+            --notification-sms: #dc2626;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .stats-card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.15s ease-in-out;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        .notification-type-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+
+        .notification-type-email { background-color: var(--notification-email); color: white; }
+        .notification-type-slack { background-color: var(--notification-slack); color: white; }
+        .notification-type-push { background-color: var(--notification-push); color: white; }
+        .notification-type-sms { background-color: var(--notification-sms); color: white; }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+
+        .status-pending { background-color: #fbbf24; color: #92400e; }
+        .status-processing { background-color: #60a5fa; color: #1e40af; }
+        .status-sent { background-color: #34d399; color: #047857; }
+        .status-delivered { background-color: #10b981; color: #065f46; }
+        .status-failed { background-color: #f87171; color: #dc2626; }
+        .status-cancelled { background-color: #9ca3af; color: #374151; }
+
+        .priority-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+
+        .priority-low { background-color: #e5e7eb; color: #6b7280; }
+        .priority-normal { background-color: #dbeafe; color: #2563eb; }
+        .priority-high { background-color: #fed7aa; color: #ea580c; }
+        .priority-urgent { background-color: #fecaca; color: #dc2626; }
+
+        .notification-row {
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .notification-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .metric-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .quick-action-btn {
+            border: 2px solid;
+            font-weight: 500;
+            transition: all 0.15s ease-in-out;
+        }
+
+        .filter-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            background-color: #f9fafb;
+        }
+
+        .filter-group {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem;
+        }
+
+        .filter-group:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#" style="color: var(--ses-primary);">
+                <i class="bi bi-layers me-2"></i>SES業務システム
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="me-3">管理者: 田中太郎</span>
+                <button class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-box-arrow-right"></i> ログアウト
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <nav class="nav flex-column p-3">
+            <a class="nav-link text-white mb-2" href="#"><i class="bi bi-speedometer2 me-2"></i>ダッシュボード</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-folder me-2"></i>案件管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-people me-2"></i>技術者管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-search-heart me-2"></i>マッチング</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-file-earmark-text me-2"></i>契約管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-clock me-2"></i>勤怠・工数</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-receipt me-2"></i>請求・支払</a>
+            <a class="nav-link text-white bg-primary rounded mb-2" href="#"><i class="bi bi-bell me-2"></i>通知管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-graph-up me-2"></i>レポート</a>
+        </nav>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="container-fluid p-4" x-data="notificationDashboard()">
+            <!-- ページヘッダー -->
+            <div class="row mb-4">
+                <div class="col">
+                    <h2 class="mb-1">
+                        <i class="bi bi-bell me-2"></i>通知管理ダッシュボード
+                    </h2>
+                    <p class="text-muted mb-0">システム通知の送信・管理・分析を行います</p>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#sendNotificationModal">
+                        <i class="bi bi-plus-circle me-1"></i>通知送信
+                    </button>
+                    <button class="btn btn-outline-primary">
+                        <i class="bi bi-gear me-1"></i>設定
+                    </button>
+                </div>
+            </div>
+
+            <!-- 統計カード -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-circle bg-primary me-3">
+                                    <i class="bi bi-envelope"></i>
+                                </div>
+                                <div>
+                                    <h5 class="card-title mb-0">2,847</h5>
+                                    <p class="card-text text-muted mb-0">今月の総送信数</p>
+                                    <small class="text-success">
+                                        <i class="bi bi-arrow-up"></i> +12.5%
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-circle bg-success me-3">
+                                    <i class="bi bi-check-circle"></i>
+                                </div>
+                                <div>
+                                    <h5 class="card-title mb-0">97.2%</h5>
+                                    <p class="card-text text-muted mb-0">配信成功率</p>
+                                    <small class="text-success">
+                                        <i class="bi bi-arrow-up"></i> +2.1%
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-circle bg-warning me-3">
+                                    <i class="bi bi-clock"></i>
+                                </div>
+                                <div>
+                                    <h5 class="card-title mb-0">23</h5>
+                                    <p class="card-text text-muted mb-0">送信待ち</p>
+                                    <small class="text-muted">
+                                        スケジュール済み
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-circle bg-danger me-3">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                </div>
+                                <div>
+                                    <h5 class="card-title mb-0">8</h5>
+                                    <p class="card-text text-muted mb-0">送信失敗</p>
+                                    <small class="text-danger">
+                                        要確認
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- チャート・アクションエリア -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-graph-up me-2"></i>通知送信状況（直近7日）
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="notificationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-lightning me-2"></i>クイックアクション
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-3">
+                                <button class="btn quick-action-btn btn-outline-primary" onclick="sendBulkNotification()">
+                                    <i class="bi bi-broadcast me-2"></i>
+                                    一括通知送信
+                                </button>
+                                <button class="btn quick-action-btn btn-outline-success" onclick="retryFailedNotifications()">
+                                    <i class="bi bi-arrow-clockwise me-2"></i>
+                                    失敗通知再送信
+                                </button>
+                                <button class="btn quick-action-btn btn-outline-warning" onclick="showScheduledNotifications()">
+                                    <i class="bi bi-calendar-event me-2"></i>
+                                    スケジュール確認
+                                </button>
+                                <button class="btn quick-action-btn btn-outline-info" onclick="exportNotificationLog()">
+                                    <i class="bi bi-download me-2"></i>
+                                    履歴エクスポート
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- フィルター・検索エリア -->
+            <div class="row mb-4">
+                <div class="col-md-9">
+                    <div class="card filter-card">
+                        <div class="card-body p-3">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-3">
+                                    <label class="form-label">通知タイプ</label>
+                                    <select class="form-select" x-model="filters.type">
+                                        <option value="">全て</option>
+                                        <option value="EMAIL">Email</option>
+                                        <option value="SLACK">Slack</option>
+                                        <option value="PUSH">Push通知</option>
+                                        <option value="SMS">SMS</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">ステータス</label>
+                                    <select class="form-select" x-model="filters.status">
+                                        <option value="">全て</option>
+                                        <option value="PENDING">送信待ち</option>
+                                        <option value="PROCESSING">処理中</option>
+                                        <option value="SENT">送信済み</option>
+                                        <option value="DELIVERED">配信完了</option>
+                                        <option value="FAILED">送信失敗</option>
+                                        <option value="CANCELLED">キャンセル</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">優先度</label>
+                                    <select class="form-select" x-model="filters.priority">
+                                        <option value="">全て</option>
+                                        <option value="LOW">低</option>
+                                        <option value="NORMAL">通常</option>
+                                        <option value="HIGH">高</option>
+                                        <option value="URGENT">緊急</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-primary w-100" @click="applyFilters()">
+                                        <i class="bi bi-search me-1"></i>検索
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="キーワード検索..." x-model="searchKeyword">
+                        <button class="btn btn-outline-secondary" type="button" @click="searchNotifications()">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 通知一覧テーブル -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-list-ul me-2"></i>通知一覧
+                        </h5>
+                        <div class="d-flex align-items-center">
+                            <span class="text-muted me-3">
+                                <span x-text="filteredNotifications.length"></span> 件
+                            </span>
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="viewMode" id="tableView" checked>
+                                <label class="btn btn-outline-secondary btn-sm" for="tableView">
+                                    <i class="bi bi-table"></i>
+                                </label>
+                                <input type="radio" class="btn-check" name="viewMode" id="cardView">
+                                <label class="btn btn-outline-secondary btn-sm" for="cardView">
+                                    <i class="bi bi-grid"></i>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" class="form-check-input">
+                                    </th>
+                                    <th>タイプ</th>
+                                    <th>宛先</th>
+                                    <th>件名</th>
+                                    <th>優先度</th>
+                                    <th>ステータス</th>
+                                    <th>送信日時</th>
+                                    <th>アクション</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="notification in filteredNotifications" :key="notification.id">
+                                    <tr class="notification-row" @click="showNotificationDetail(notification)">
+                                        <td>
+                                            <input type="checkbox" class="form-check-input" @click.stop>
+                                        </td>
+                                        <td>
+                                            <span class="notification-type-badge" 
+                                                  :class="'notification-type-' + notification.type.toLowerCase()"
+                                                  x-text="notification.type">
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <div class="fw-medium" x-text="notification.recipientName"></div>
+                                                <small class="text-muted" x-text="notification.recipientEmail"></small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="text-truncate" style="max-width: 200px;" x-text="notification.subject"></div>
+                                        </td>
+                                        <td>
+                                            <span class="priority-badge" 
+                                                  :class="'priority-' + notification.priority.toLowerCase()"
+                                                  x-text="notification.priority">
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge" 
+                                                  :class="'status-' + notification.status.toLowerCase()"
+                                                  x-text="getStatusText(notification.status)">
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div x-text="formatDateTime(notification.sentAt)"></div>
+                                            <template x-if="notification.deliveredAt">
+                                                <small class="text-success">
+                                                    配信: <span x-text="formatDateTime(notification.deliveredAt)"></span>
+                                                </small>
+                                            </template>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" @click.stop>
+                                                <button class="btn btn-outline-secondary" 
+                                                        @click="showNotificationDetail(notification)"
+                                                        title="詳細">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <template x-if="notification.status === 'FAILED'">
+                                                    <button class="btn btn-outline-warning" 
+                                                            @click="retryNotification(notification)"
+                                                            title="再送信">
+                                                        <i class="bi bi-arrow-clockwise"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="notification.status === 'PENDING'">
+                                                    <button class="btn btn-outline-danger" 
+                                                            @click="cancelNotification(notification)"
+                                                            title="キャンセル">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- ページネーション -->
+                    <div class="d-flex justify-content-between align-items-center p-3 border-top">
+                        <div class="text-muted">
+                            <span x-text="(currentPage * pageSize) + 1"></span> - 
+                            <span x-text="Math.min((currentPage + 1) * pageSize, totalItems)"></span> 
+                            of <span x-text="totalItems"></span> 件
+                        </div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item" :class="{ 'disabled': currentPage === 0 }">
+                                    <button class="page-link" @click="previousPage()">前へ</button>
+                                </li>
+                                <template x-for="page in visiblePages" :key="page">
+                                    <li class="page-item" :class="{ 'active': page === currentPage }">
+                                        <button class="page-link" @click="goToPage(page)" x-text="page + 1"></button>
+                                    </li>
+                                </template>
+                                <li class="page-item" :class="{ 'disabled': currentPage === totalPages - 1 }">
+                                    <button class="page-link" @click="nextPage()">次へ</button>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知送信モーダル -->
+    <div class="modal fade" id="sendNotificationModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新規通知送信</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">通知タイプ</label>
+                                <select class="form-select" required>
+                                    <option value="">選択してください</option>
+                                    <option value="EMAIL">Email</option>
+                                    <option value="SLACK">Slack</option>
+                                    <option value="PUSH">Push通知</option>
+                                    <option value="SMS">SMS</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">優先度</label>
+                                <select class="form-select" required>
+                                    <option value="NORMAL">通常</option>
+                                    <option value="HIGH">高</option>
+                                    <option value="URGENT">緊急</option>
+                                    <option value="LOW">低</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">宛先</label>
+                                <input type="text" class="form-control" placeholder="宛先を入力..." required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">件名</label>
+                                <input type="text" class="form-control" placeholder="件名を入力..." required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">本文</label>
+                                <textarea class="form-control" rows="5" placeholder="本文を入力..." required></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">送信予定日時</label>
+                                <input type="datetime-local" class="form-control">
+                                <div class="form-text">空欄の場合は即座に送信されます</div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary">送信</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Alpine.js -->
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        function notificationDashboard() {
+            return {
+                // フィルター状態
+                filters: {
+                    type: '',
+                    status: '',
+                    priority: ''
+                },
+                searchKeyword: '',
+                
+                // ページネーション
+                currentPage: 0,
+                pageSize: 20,
+                totalItems: 156,
+                
+                // サンプルデータ
+                notifications: [
+                    {
+                        id: '1',
+                        type: 'EMAIL',
+                        recipientName: '田中太郎',
+                        recipientEmail: 'tanaka@example.com',
+                        subject: 'プロジェクト開始のお知らせ',
+                        priority: 'NORMAL',
+                        status: 'DELIVERED',
+                        sentAt: '2024-01-15T10:30:00',
+                        deliveredAt: '2024-01-15T10:31:22'
+                    },
+                    {
+                        id: '2',
+                        type: 'SLACK',
+                        recipientName: '開発チーム',
+                        recipientEmail: '#dev-team',
+                        subject: 'システムメンテナンス完了',
+                        priority: 'HIGH',
+                        status: 'SENT',
+                        sentAt: '2024-01-15T09:15:00',
+                        deliveredAt: null
+                    },
+                    {
+                        id: '3',
+                        type: 'PUSH',
+                        recipientName: '佐藤花子',
+                        recipientEmail: 'sato@example.com',
+                        subject: '勤怠承認依頼',
+                        priority: 'NORMAL',
+                        status: 'FAILED',
+                        sentAt: '2024-01-15T08:45:00',
+                        deliveredAt: null
+                    },
+                    {
+                        id: '4',
+                        type: 'SMS',
+                        recipientName: '山田次郎',
+                        recipientEmail: '+81-90-1234-5678',
+                        subject: '緊急連絡',
+                        priority: 'URGENT',
+                        status: 'PENDING',
+                        sentAt: null,
+                        deliveredAt: null
+                    },
+                    {
+                        id: '5',
+                        type: 'EMAIL',
+                        recipientName: '鈴木一郎',
+                        recipientEmail: 'suzuki@example.com',
+                        subject: '契約更新のお知らせ',
+                        priority: 'LOW',
+                        status: 'PROCESSING',
+                        sentAt: '2024-01-15T07:20:00',
+                        deliveredAt: null
+                    }
+                ],
+                
+                get filteredNotifications() {
+                    return this.notifications.filter(notification => {
+                        if (this.filters.type && notification.type !== this.filters.type) return false;
+                        if (this.filters.status && notification.status !== this.filters.status) return false;
+                        if (this.filters.priority && notification.priority !== this.filters.priority) return false;
+                        if (this.searchKeyword) {
+                            const keyword = this.searchKeyword.toLowerCase();
+                            return notification.recipientName.toLowerCase().includes(keyword) ||
+                                   notification.subject.toLowerCase().includes(keyword);
+                        }
+                        return true;
+                    });
+                },
+                
+                get totalPages() {
+                    return Math.ceil(this.totalItems / this.pageSize);
+                },
+                
+                get visiblePages() {
+                    const pages = [];
+                    const start = Math.max(0, this.currentPage - 2);
+                    const end = Math.min(this.totalPages - 1, start + 4);
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
+                },
+                
+                applyFilters() {
+                    this.currentPage = 0;
+                    // フィルター適用ロジック
+                },
+                
+                searchNotifications() {
+                    this.currentPage = 0;
+                    // 検索ロジック
+                },
+                
+                showNotificationDetail(notification) {
+                    // 詳細表示ロジック
+                    console.log('通知詳細:', notification);
+                },
+                
+                retryNotification(notification) {
+                    // 再送信ロジック
+                    console.log('再送信:', notification);
+                },
+                
+                cancelNotification(notification) {
+                    // キャンセルロジック
+                    console.log('キャンセル:', notification);
+                },
+                
+                getStatusText(status) {
+                    const statusMap = {
+                        'PENDING': '送信待ち',
+                        'PROCESSING': '処理中',
+                        'SENT': '送信済み',
+                        'DELIVERED': '配信完了',
+                        'FAILED': '送信失敗',
+                        'CANCELLED': 'キャンセル'
+                    };
+                    return statusMap[status] || status;
+                },
+                
+                formatDateTime(dateTime) {
+                    if (!dateTime) return '-';
+                    return new Date(dateTime).toLocaleString('ja-JP');
+                },
+                
+                previousPage() {
+                    if (this.currentPage > 0) {
+                        this.currentPage--;
+                    }
+                },
+                
+                nextPage() {
+                    if (this.currentPage < this.totalPages - 1) {
+                        this.currentPage++;
+                    }
+                },
+                
+                goToPage(page) {
+                    this.currentPage = page;
+                }
+            }
+        }
+        
+        // チャート初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('notificationChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['1/9', '1/10', '1/11', '1/12', '1/13', '1/14', '1/15'],
+                    datasets: [{
+                        label: '送信数',
+                        data: [234, 267, 189, 298, 356, 278, 312],
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: '配信成功数',
+                        data: [228, 260, 184, 290, 345, 270, 304],
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+        
+        // クイックアクション関数
+        function sendBulkNotification() {
+            alert('一括通知送信機能（実装予定）');
+        }
+        
+        function retryFailedNotifications() {
+            alert('失敗通知再送信機能（実装予定）');
+        }
+        
+        function showScheduledNotifications() {
+            alert('スケジュール確認機能（実装予定）');
+        }
+        
+        function exportNotificationLog() {
+            alert('履歴エクスポート機能（実装予定）');
+        }
+    </script>
+</body>
+</html>

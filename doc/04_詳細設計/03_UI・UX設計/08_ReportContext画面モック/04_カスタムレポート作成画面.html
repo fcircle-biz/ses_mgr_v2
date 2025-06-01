@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カスタムレポート作成 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- Sortable.js for drag and drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+            --ses-dark: #212529;
+            --builder-primary: #6f42c1;
+            --builder-secondary: #e83e8c;
+            --builder-accent: #20c997;
+            --section-bg: #f8f9ff;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+            background: #f8f9fa;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .builder-header {
+            background: linear-gradient(135deg, var(--builder-primary), #8b5cf6);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .builder-header::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -15%;
+            width: 300px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+        
+        .builder-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr 400px;
+            gap: 2rem;
+            min-height: calc(100vh - 200px);
+        }
+        
+        .builder-panel {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            background: var(--ses-light);
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+            color: var(--ses-dark);
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+        
+        .panel-body {
+            padding: 1.5rem;
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+        
+        .form-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .form-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--ses-dark);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .component-palette {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+        
+        .component-item {
+            background: var(--section-bg);
+            border: 2px dashed #c8d3ff;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+            cursor: grab;
+            transition: all 0.3s;
+            user-select: none;
+        }
+        
+        .component-item:hover {
+            border-color: var(--builder-primary);
+            background: rgba(111, 66, 193, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .component-item:active {
+            cursor: grabbing;
+        }
+        
+        .component-icon {
+            font-size: 2rem;
+            color: var(--builder-primary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .component-name {
+            font-weight: 500;
+            color: var(--ses-dark);
+            font-size: 0.9rem;
+        }
+        
+        .canvas-area {
+            background: white;
+            border-radius: 1rem;
+            min-height: 500px;
+            padding: 2rem;
+            position: relative;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .canvas-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: var(--ses-secondary);
+            text-align: center;
+        }
+        
+        .canvas-empty i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .report-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .report-section {
+            background: var(--section-bg);
+            border: 2px solid #e9ecef;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .report-section:hover {
+            border-color: var(--builder-primary);
+            box-shadow: 0 0.25rem 1rem rgba(111, 66, 193, 0.1);
+        }
+        
+        .report-section.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .section-type {
+            background: var(--builder-primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .section-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .section-content {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            min-height: 100px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .chart-preview {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(45deg, #f8f9fa 25%, transparent 25%), 
+                        linear-gradient(-45deg, #f8f9fa 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #f8f9fa 75%), 
+                        linear-gradient(-45deg, transparent 75%, #f8f9fa 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        
+        .config-panel {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .config-tabs {
+            display: flex;
+            background: var(--ses-light);
+            border-radius: 1rem 1rem 0 0;
+        }
+        
+        .config-tab {
+            flex: 1;
+            padding: 1rem;
+            background: none;
+            border: none;
+            font-weight: 500;
+            color: var(--ses-secondary);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .config-tab.active {
+            background: white;
+            color: var(--builder-primary);
+            border-bottom: 3px solid var(--builder-primary);
+        }
+        
+        .config-content {
+            padding: 1.5rem;
+            max-height: calc(100vh - 400px);
+            overflow-y: auto;
+        }
+        
+        .preview-container {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e9ecef;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .color-picker {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        
+        .data-mapping {
+            background: var(--ses-light);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .mapping-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .mapping-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .mapping-label {
+            min-width: 80px;
+            font-weight: 500;
+            color: var(--ses-dark);
+        }
+        
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .time-picker {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .recipients-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            background: white;
+        }
+        
+        .recipient-item {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .recipient-item:hover {
+            background: var(--ses-light);
+        }
+        
+        .action-buttons {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding: 1.5rem;
+            border-top: 1px solid #dee2e6;
+            margin: -1.5rem -1.5rem 0;
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .floating-preview {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90vw;
+            max-width: 1200px;
+            height: 90vh;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 2rem 4rem rgba(0,0,0,0.2);
+            z-index: 2000;
+            display: none;
+            overflow: hidden;
+        }
+        
+        .preview-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1999;
+            display: none;
+        }
+        
+        .sortable-ghost {
+            opacity: 0.4;
+        }
+        
+        .sortable-chosen {
+            transform: scale(1.05);
+        }
+        
+        .drag-handle {
+            cursor: grab;
+            color: var(--ses-secondary);
+            font-size: 1.2rem;
+        }
+        
+        .drag-handle:hover {
+            color: var(--builder-primary);
+        }
+        
+        .success-indicator {
+            background: var(--ses-success);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .validation-error {
+            background: var(--ses-danger);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .builder-layout {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .sidebar {
+                transform: translateX(-100%);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .builder-layout {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .panel-body {
+                max-height: none;
+            }
+            
+            .config-content {
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body x-data="customReportBuilder" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>管理者 田中
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            
+            <!-- ビルダーヘッダー -->
+            <div class="builder-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="h2 mb-2">🎨 カスタムレポートビルダー</h1>
+                        <p class="mb-0 opacity-75">ドラッグ&ドロップで簡単にレポートを作成</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="success-indicator" x-show="autoSaved" x-transition>
+                            <i class="bi bi-check-circle me-1"></i>自動保存済み
+                        </div>
+                        <div class="small opacity-75 mt-1">
+                            最終保存: <span x-text="lastSaved"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- バリデーションエラー -->
+            <div class="validation-error" x-show="validationErrors.length > 0" x-transition>
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <span x-text="validationErrors[0]"></span>
+            </div>
+            
+            <!-- ビルダーレイアウト -->
+            <div class="builder-layout">
+                
+                <!-- 左パネル: 基本設定 & コンポーネント -->
+                <div class="builder-panel">
+                    <div class="panel-header">
+                        <i class="bi bi-gear me-2"></i>レポート設定
+                    </div>
+                    <div class="panel-body">
+                        
+                        <!-- 基本情報 -->
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="bi bi-file-text"></i>基本情報
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">レポート名</label>
+                                <input type="text" class="form-control" x-model="reportConfig.name" 
+                                       placeholder="例: 月次売上分析レポート">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">説明</label>
+                                <textarea class="form-control" rows="3" x-model="reportConfig.description"
+                                         placeholder="レポートの目的や内容を説明"></textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label class="form-label">タイプ</label>
+                                    <select class="form-select" x-model="reportConfig.type">
+                                        <option value="daily">日次</option>
+                                        <option value="weekly">週次</option>
+                                        <option value="monthly">月次</option>
+                                        <option value="quarterly">四半期</option>
+                                        <option value="yearly">年次</option>
+                                        <option value="adhoc">アドホック</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">カテゴリ</label>
+                                    <select class="form-select" x-model="reportConfig.category">
+                                        <option value="sales">売上</option>
+                                        <option value="financial">財務</option>
+                                        <option value="operational">運用</option>
+                                        <option value="hr">人事</option>
+                                        <option value="executive">経営</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- データソース -->
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="bi bi-database"></i>データソース
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">期間設定</label>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <input type="date" class="form-control" x-model="reportConfig.dateFrom">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="date" class="form-control" x-model="reportConfig.dateTo">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">データカテゴリ</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="reportConfig.dataSources" value="sales">
+                                    <label class="form-check-label">売上データ</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="reportConfig.dataSources" value="projects">
+                                    <label class="form-check-label">案件データ</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="reportConfig.dataSources" value="engineers">
+                                    <label class="form-check-label">技術者データ</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="reportConfig.dataSources" value="matching">
+                                    <label class="form-check-label">マッチングデータ</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- コンポーネントパレット -->
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="bi bi-puzzle"></i>コンポーネント
+                            </div>
+                            <div class="component-palette">
+                                <div class="component-item" draggable="true" @dragstart="startDrag($event, 'chart')">
+                                    <i class="bi bi-bar-chart component-icon"></i>
+                                    <div class="component-name">グラフ</div>
+                                </div>
+                                <div class="component-item" draggable="true" @dragstart="startDrag($event, 'table')">
+                                    <i class="bi bi-table component-icon"></i>
+                                    <div class="component-name">テーブル</div>
+                                </div>
+                                <div class="component-item" draggable="true" @dragstart="startDrag($event, 'metric')">
+                                    <i class="bi bi-speedometer2 component-icon"></i>
+                                    <div class="component-name">メトリクス</div>
+                                </div>
+                                <div class="component-item" draggable="true" @dragstart="startDrag($event, 'text')">
+                                    <i class="bi bi-textarea-t component-icon"></i>
+                                    <div class="component-name">テキスト</div>
+                                </div>
+                                <div class="component-item" draggable="true" @dragstart="startDrag($event, 'image')">
+                                    <i class="bi bi-image component-icon"></i>
+                                    <div class="component-name">画像</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 中央パネル: キャンバス -->
+                <div class="builder-panel">
+                    <div class="panel-header">
+                        <div class="d-flex justify-content-between align-items-center w-100">
+                            <div>
+                                <i class="bi bi-layout-text-window me-2"></i>レポートキャンバス
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary btn-sm" @click="clearCanvas()">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" @click="previewReport()">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div class="canvas-area" 
+                             @drop="dropComponent($event)" 
+                             @dragover.prevent 
+                             @dragenter.prevent>
+                            
+                            <!-- 空の状態 -->
+                            <div class="canvas-empty" x-show="reportSections.length === 0">
+                                <i class="bi bi-plus-circle"></i>
+                                <h5>レポートを作成しましょう</h5>
+                                <p>左側からコンポーネントをドラッグ&ドロップして<br>レポートを構築してください</p>
+                            </div>
+                            
+                            <!-- レポートセクション -->
+                            <div class="report-sections" id="sortable-sections" x-show="reportSections.length > 0">
+                                <template x-for="(section, index) in reportSections" :key="section.id">
+                                    <div class="report-section" :data-id="section.id" @click="selectSection(section.id)">
+                                        <div class="section-header">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-grip-vertical drag-handle"></i>
+                                                <span class="section-type" x-text="getSectionTypeName(section.type)"></span>
+                                                <span x-text="section.title || 'タイトル未設定'"></span>
+                                            </div>
+                                            <div class="section-actions">
+                                                <button class="btn btn-outline-secondary btn-sm" @click="editSection(section.id)">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger btn-sm" @click="removeSection(index)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="section-content">
+                                            <!-- グラフプレビュー -->
+                                            <div x-show="section.type === 'chart'" class="chart-preview">
+                                                <canvas :id="'preview-chart-' + section.id" style="max-height: 200px;"></canvas>
+                                            </div>
+                                            
+                                            <!-- テーブルプレビュー -->
+                                            <div x-show="section.type === 'table'">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>項目</th>
+                                                            <th>値</th>
+                                                            <th>前月比</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td>サンプルデータ1</td>
+                                                            <td>1,000</td>
+                                                            <td>+5.2%</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td>サンプルデータ2</td>
+                                                            <td>2,500</td>
+                                                            <td>-2.1%</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            
+                                            <!-- メトリクスプレビュー -->
+                                            <div x-show="section.type === 'metric'" class="row text-center">
+                                                <div class="col-4">
+                                                    <h4 class="text-primary">1,234</h4>
+                                                    <small>売上高</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <h4 class="text-success">+12%</h4>
+                                                    <small>成長率</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <h4 class="text-info">98.5%</h4>
+                                                    <small>達成率</small>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- テキストプレビュー -->
+                                            <div x-show="section.type === 'text'">
+                                                <p x-text="section.content || 'テキストコンテンツがここに表示されます。編集するには右の設定パネルを使用してください。'"></p>
+                                            </div>
+                                            
+                                            <!-- 画像プレビュー -->
+                                            <div x-show="section.type === 'image'" class="text-center">
+                                                <i class="bi bi-image" style="font-size: 3rem; color: #ccc;"></i>
+                                                <p class="mt-2 text-muted">画像を設定してください</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右パネル: 設定 -->
+                <div class="config-panel">
+                    <div class="config-tabs">
+                        <button class="config-tab" :class="{ active: activeConfigTab === 'section' }" @click="activeConfigTab = 'section'">
+                            セクション
+                        </button>
+                        <button class="config-tab" :class="{ active: activeConfigTab === 'schedule' }" @click="activeConfigTab = 'schedule'">
+                            スケジュール
+                        </button>
+                        <button class="config-tab" :class="{ active: activeConfigTab === 'share' }" @click="activeConfigTab = 'share'">
+                            共有
+                        </button>
+                    </div>
+                    
+                    <div class="config-content">
+                        
+                        <!-- セクション設定 -->
+                        <div x-show="activeConfigTab === 'section'">
+                            <div x-show="selectedSection">
+                                <h6 class="mb-3">セクション設定</h6>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">タイトル</label>
+                                    <input type="text" class="form-control" x-model="currentSectionConfig.title" 
+                                           placeholder="セクションタイトル">
+                                </div>
+                                
+                                <div x-show="currentSectionConfig.type === 'chart'">
+                                    <div class="mb-3">
+                                        <label class="form-label">グラフタイプ</label>
+                                        <select class="form-select" x-model="currentSectionConfig.chartType">
+                                            <option value="line">線グラフ</option>
+                                            <option value="bar">棒グラフ</option>
+                                            <option value="pie">円グラフ</option>
+                                            <option value="doughnut">ドーナツグラフ</option>
+                                            <option value="area">エリアグラフ</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="data-mapping">
+                                        <h6 class="mb-2">データマッピング</h6>
+                                        <div class="mapping-row">
+                                            <span class="mapping-label">X軸:</span>
+                                            <select class="form-select form-select-sm">
+                                                <option>月</option>
+                                                <option>日付</option>
+                                                <option>カテゴリ</option>
+                                            </select>
+                                        </div>
+                                        <div class="mapping-row">
+                                            <span class="mapping-label">Y軸:</span>
+                                            <select class="form-select form-select-sm">
+                                                <option>売上高</option>
+                                                <option>件数</option>
+                                                <option>利益率</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">カラーテーマ</label>
+                                        <div class="d-flex gap-2">
+                                            <div class="color-picker" style="background: #0d6efd;" @click="setChartColor('#0d6efd')"></div>
+                                            <div class="color-picker" style="background: #198754;" @click="setChartColor('#198754')"></div>
+                                            <div class="color-picker" style="background: #dc3545;" @click="setChartColor('#dc3545')"></div>
+                                            <div class="color-picker" style="background: #ffc107;" @click="setChartColor('#ffc107')"></div>
+                                            <div class="color-picker" style="background: #6f42c1;" @click="setChartColor('#6f42c1')"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div x-show="currentSectionConfig.type === 'text'">
+                                    <div class="mb-3">
+                                        <label class="form-label">内容</label>
+                                        <textarea class="form-control" rows="6" x-model="currentSectionConfig.content"
+                                                 placeholder="テキスト内容を入力"></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" x-model="currentSectionConfig.showTitle">
+                                        <label class="form-check-label">タイトルを表示</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" x-model="currentSectionConfig.showBorder">
+                                        <label class="form-check-label">境界線を表示</label>
+                                    </div>
+                                </div>
+                                
+                                <button class="btn btn-primary btn-sm w-100" @click="applySectionConfig()">
+                                    設定を適用
+                                </button>
+                            </div>
+                            
+                            <div x-show="!selectedSection" class="text-center text-muted py-4">
+                                <i class="bi bi-arrow-left" style="font-size: 2rem;"></i>
+                                <p class="mt-2">セクションを選択してください</p>
+                            </div>
+                        </div>
+                        
+                        <!-- スケジュール設定 -->
+                        <div x-show="activeConfigTab === 'schedule'">
+                            <h6 class="mb-3">自動生成スケジュール</h6>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="scheduleConfig.enabled">
+                                    <label class="form-check-label">自動生成を有効にする</label>
+                                </div>
+                            </div>
+                            
+                            <div x-show="scheduleConfig.enabled">
+                                <div class="schedule-grid">
+                                    <div>
+                                        <label class="form-label">頻度</label>
+                                        <select class="form-select" x-model="scheduleConfig.frequency">
+                                            <option value="daily">毎日</option>
+                                            <option value="weekly">毎週</option>
+                                            <option value="monthly">毎月</option>
+                                            <option value="quarterly">四半期</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label">実行時刻</label>
+                                        <div class="time-picker">
+                                            <input type="time" class="form-control" x-model="scheduleConfig.time">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3" x-show="scheduleConfig.frequency === 'weekly'">
+                                    <label class="form-label">曜日</label>
+                                    <select class="form-select" x-model="scheduleConfig.dayOfWeek">
+                                        <option value="1">月曜日</option>
+                                        <option value="2">火曜日</option>
+                                        <option value="3">水曜日</option>
+                                        <option value="4">木曜日</option>
+                                        <option value="5">金曜日</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3" x-show="scheduleConfig.frequency === 'monthly'">
+                                    <label class="form-label">実行日</label>
+                                    <select class="form-select" x-model="scheduleConfig.dayOfMonth">
+                                        <option value="1">1日</option>
+                                        <option value="5">5日</option>
+                                        <option value="10">10日</option>
+                                        <option value="15">15日</option>
+                                        <option value="last">月末</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 共有設定 -->
+                        <div x-show="activeConfigTab === 'share'">
+                            <h6 class="mb-3">配信・共有設定</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">配信先を追加</label>
+                                <div class="input-group">
+                                    <input type="email" class="form-control" x-model="newRecipient" 
+                                           placeholder="メールアドレス">
+                                    <button class="btn btn-outline-primary" @click="addRecipient()">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="recipients-list">
+                                <template x-for="(recipient, index) in recipients" :key="index">
+                                    <div class="recipient-item">
+                                        <span x-text="recipient"></span>
+                                        <button class="btn btn-outline-danger btn-sm" @click="removeRecipient(index)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                                
+                                <div x-show="recipients.length === 0" class="text-center text-muted py-3">
+                                    配信先が設定されていません
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 mt-3">
+                                <label class="form-label">出力形式</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="shareConfig.formats" value="pdf">
+                                    <label class="form-check-label">PDF</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="shareConfig.formats" value="excel">
+                                    <label class="form-check-label">Excel</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" x-model="shareConfig.formats" value="csv">
+                                    <label class="form-check-label">CSV</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- アクションボタン -->
+                    <div class="action-buttons">
+                        <button class="btn btn-outline-secondary flex-fill" @click="saveDraft()">
+                            <i class="bi bi-save me-1"></i>下書き保存
+                        </button>
+                        <button class="btn btn-success flex-fill" @click="saveTemplate()">
+                            <i class="bi bi-check-circle me-1"></i>保存
+                        </button>
+                        <button class="btn btn-primary flex-fill" @click="generateReport()">
+                            <i class="bi bi-play-circle me-1"></i>生成
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- プレビューモーダル -->
+    <div class="preview-overlay" x-show="showPreview" @click="showPreview = false" x-transition.opacity></div>
+    <div class="floating-preview" x-show="showPreview" x-transition>
+        <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+            <h5 class="mb-0">レポートプレビュー</h5>
+            <button class="btn btn-outline-secondary" @click="showPreview = false">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="p-3" style="height: calc(90vh - 80px); overflow-y: auto;">
+            <!-- プレビューコンテンツがここに表示される -->
+            <div class="text-center py-5">
+                <i class="bi bi-file-earmark-text" style="font-size: 4rem; color: #ccc;"></i>
+                <h4 class="mt-3">レポートプレビュー</h4>
+                <p class="text-muted">設定されたレポートの完成イメージが表示されます</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('customReportBuilder', () => ({
+                // レポート設定
+                reportConfig: {
+                    name: '',
+                    description: '',
+                    type: 'monthly',
+                    category: 'sales',
+                    dateFrom: '',
+                    dateTo: '',
+                    dataSources: []
+                },
+                
+                // レポートセクション
+                reportSections: [],
+                selectedSection: null,
+                currentSectionConfig: {},
+                
+                // UI状態
+                activeConfigTab: 'section',
+                showPreview: false,
+                autoSaved: false,
+                lastSaved: '未保存',
+                validationErrors: [],
+                
+                // スケジュール設定
+                scheduleConfig: {
+                    enabled: false,
+                    frequency: 'monthly',
+                    time: '09:00',
+                    dayOfWeek: '1',
+                    dayOfMonth: '1'
+                },
+                
+                // 共有設定
+                shareConfig: {
+                    formats: ['pdf']
+                },
+                recipients: [],
+                newRecipient: '',
+                
+                // ドラッグ&ドロップ
+                draggedComponent: null,
+                
+                init() {
+                    this.initSortable();
+                    this.startAutoSave();
+                    this.setDefaultDates();
+                },
+                
+                setDefaultDates() {
+                    const today = new Date();
+                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    
+                    this.reportConfig.dateFrom = firstDay.toISOString().split('T')[0];
+                    this.reportConfig.dateTo = lastDay.toISOString().split('T')[0];
+                },
+                
+                initSortable() {
+                    this.$nextTick(() => {
+                        const sortableElement = document.getElementById('sortable-sections');
+                        if (sortableElement) {
+                            Sortable.create(sortableElement, {
+                                handle: '.drag-handle',
+                                animation: 150,
+                                ghostClass: 'sortable-ghost',
+                                chosenClass: 'sortable-chosen',
+                                onEnd: (evt) => {
+                                    const item = this.reportSections[evt.oldIndex];
+                                    this.reportSections.splice(evt.oldIndex, 1);
+                                    this.reportSections.splice(evt.newIndex, 0, item);
+                                }
+                            });
+                        }
+                    });
+                },
+                
+                startAutoSave() {
+                    setInterval(() => {
+                        if (this.reportSections.length > 0 || this.reportConfig.name) {
+                            this.autoSave();
+                        }
+                    }, 30000); // 30秒間隔
+                },
+                
+                autoSave() {
+                    console.log('自動保存実行');
+                    this.autoSaved = true;
+                    this.lastSaved = new Date().toLocaleTimeString('ja-JP', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    setTimeout(() => {
+                        this.autoSaved = false;
+                    }, 3000);
+                },
+                
+                // ドラッグ&ドロップ
+                startDrag(event, componentType) {
+                    this.draggedComponent = componentType;
+                    event.dataTransfer.effectAllowed = 'copy';
+                },
+                
+                dropComponent(event) {
+                    event.preventDefault();
+                    if (this.draggedComponent) {
+                        this.addSection(this.draggedComponent);
+                        this.draggedComponent = null;
+                    }
+                },
+                
+                addSection(type) {
+                    const newSection = {
+                        id: 'section_' + Date.now(),
+                        type: type,
+                        title: this.getDefaultTitle(type),
+                        content: '',
+                        chartType: 'line',
+                        showTitle: true,
+                        showBorder: true,
+                        order: this.reportSections.length
+                    };
+                    
+                    this.reportSections.push(newSection);
+                    this.selectSection(newSection.id);
+                    this.initSortable(); // 再初期化
+                    
+                    // グラフの場合はプレビューを作成
+                    if (type === 'chart') {
+                        this.$nextTick(() => {
+                            this.createChartPreview(newSection.id);
+                        });
+                    }
+                },
+                
+                getDefaultTitle(type) {
+                    const titles = {
+                        chart: '売上推移グラフ',
+                        table: 'データテーブル',
+                        metric: 'KPI指標',
+                        text: 'テキストセクション',
+                        image: '画像セクション'
+                    };
+                    return titles[type] || 'セクション';
+                },
+                
+                getSectionTypeName(type) {
+                    const names = {
+                        chart: 'グラフ',
+                        table: 'テーブル',
+                        metric: 'メトリクス',
+                        text: 'テキスト',
+                        image: '画像'
+                    };
+                    return names[type] || type;
+                },
+                
+                selectSection(sectionId) {
+                    this.selectedSection = sectionId;
+                    const section = this.reportSections.find(s => s.id === sectionId);
+                    if (section) {
+                        this.currentSectionConfig = { ...section };
+                        this.activeConfigTab = 'section';
+                    }
+                },
+                
+                editSection(sectionId) {
+                    this.selectSection(sectionId);
+                },
+                
+                removeSection(index) {
+                    if (confirm('このセクションを削除しますか？')) {
+                        this.reportSections.splice(index, 1);
+                        this.selectedSection = null;
+                        this.currentSectionConfig = {};
+                    }
+                },
+                
+                applySectionConfig() {
+                    const sectionIndex = this.reportSections.findIndex(s => s.id === this.selectedSection);
+                    if (sectionIndex !== -1) {
+                        this.reportSections[sectionIndex] = { ...this.currentSectionConfig };
+                        
+                        // グラフの場合はプレビューを更新
+                        if (this.currentSectionConfig.type === 'chart') {
+                            this.$nextTick(() => {
+                                this.createChartPreview(this.selectedSection);
+                            });
+                        }
+                    }
+                },
+                
+                createChartPreview(sectionId) {
+                    const ctx = document.getElementById(`preview-chart-${sectionId}`);
+                    if (!ctx) return;
+                    
+                    const section = this.reportSections.find(s => s.id === sectionId);
+                    if (!section) return;
+                    
+                    // 既存のチャートがあれば破棄
+                    if (ctx.chart) {
+                        ctx.chart.destroy();
+                    }
+                    
+                    const chartType = section.chartType || 'line';
+                    const sampleData = this.generateSampleData(chartType);
+                    
+                    ctx.chart = new Chart(ctx, {
+                        type: chartType,
+                        data: sampleData,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: chartType !== 'pie' && chartType !== 'doughnut'
+                                }
+                            },
+                            scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                generateSampleData(chartType) {
+                    const labels = ['1月', '2月', '3月', '4月', '5月', '6月'];
+                    const colors = ['#0d6efd', '#198754', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
+                    
+                    if (chartType === 'pie' || chartType === 'doughnut') {
+                        return {
+                            labels: ['Web開発', 'モバイル', 'AI/ML', 'インフラ'],
+                            datasets: [{
+                                data: [40, 25, 20, 15],
+                                backgroundColor: colors.slice(0, 4)
+                            }]
+                        };
+                    }
+                    
+                    return {
+                        labels: labels,
+                        datasets: [{
+                            label: 'サンプルデータ',
+                            data: [65, 72, 68, 75, 80, 85],
+                            borderColor: colors[0],
+                            backgroundColor: chartType === 'line' ? 'transparent' : colors[0],
+                            tension: 0.4,
+                            fill: chartType === 'area'
+                        }]
+                    };
+                },
+                
+                setChartColor(color) {
+                    this.currentSectionConfig.color = color;
+                },
+                
+                clearCanvas() {
+                    if (confirm('すべてのセクションを削除しますか？')) {
+                        this.reportSections = [];
+                        this.selectedSection = null;
+                        this.currentSectionConfig = {};
+                    }
+                },
+                
+                previewReport() {
+                    this.showPreview = true;
+                },
+                
+                // 配信先管理
+                addRecipient() {
+                    if (this.newRecipient && this.isValidEmail(this.newRecipient)) {
+                        if (!this.recipients.includes(this.newRecipient)) {
+                            this.recipients.push(this.newRecipient);
+                            this.newRecipient = '';
+                        }
+                    }
+                },
+                
+                removeRecipient(index) {
+                    this.recipients.splice(index, 1);
+                },
+                
+                isValidEmail(email) {
+                    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                },
+                
+                // バリデーション
+                validateReport() {
+                    this.validationErrors = [];
+                    
+                    if (!this.reportConfig.name) {
+                        this.validationErrors.push('レポート名を入力してください');
+                    }
+                    
+                    if (this.reportSections.length === 0) {
+                        this.validationErrors.push('少なくとも1つのセクションを追加してください');
+                    }
+                    
+                    if (this.reportConfig.dataSources.length === 0) {
+                        this.validationErrors.push('データソースを選択してください');
+                    }
+                    
+                    return this.validationErrors.length === 0;
+                },
+                
+                // アクション
+                saveDraft() {
+                    console.log('下書き保存');
+                    this.autoSave();
+                },
+                
+                saveTemplate() {
+                    if (this.validateReport()) {
+                        console.log('テンプレート保存:', {
+                            config: this.reportConfig,
+                            sections: this.reportSections,
+                            schedule: this.scheduleConfig,
+                            recipients: this.recipients
+                        });
+                        alert('レポートテンプレートを保存しました');
+                    }
+                },
+                
+                generateReport() {
+                    if (this.validateReport()) {
+                        console.log('レポート生成開始');
+                        alert('レポートの生成を開始しました。完了時に通知されます。');
+                    }
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

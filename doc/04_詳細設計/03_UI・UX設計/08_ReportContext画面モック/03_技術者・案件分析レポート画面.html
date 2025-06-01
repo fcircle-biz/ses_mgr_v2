@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技術者・案件分析レポート - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+            --ses-dark: #212529;
+            --engineer-color: #4facfe;
+            --project-color: #43e97b;
+            --skill-color: #fa709a;
+            --performance-color: #fee140;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+            background: #f8f9fa;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .analysis-header {
+            background: linear-gradient(135deg, var(--engineer-color), #00f2fe);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .analysis-header::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -15%;
+            width: 400px;
+            height: 400px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+        
+        .overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-trend {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .analysis-controls {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .tab-navigation {
+            background: white;
+            border-radius: 1rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+            overflow: hidden;
+        }
+        
+        .custom-tabs {
+            border: none;
+            background: none;
+        }
+        
+        .custom-tabs .nav-link {
+            border: none;
+            border-radius: 0;
+            padding: 1.5rem 2rem;
+            color: var(--ses-secondary);
+            font-weight: 500;
+            position: relative;
+            background: none;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .custom-tabs .nav-link.active {
+            color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+            border-bottom-color: var(--ses-primary);
+        }
+        
+        .custom-tabs .nav-link:hover {
+            color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.02);
+        }
+        
+        .chart-section {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--ses-dark);
+        }
+        
+        .chart-canvas {
+            height: 400px;
+            position: relative;
+        }
+        
+        .chart-canvas.small {
+            height: 300px;
+        }
+        
+        .chart-canvas.large {
+            height: 500px;
+        }
+        
+        .performance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .performance-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .performance-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--ses-primary), var(--ses-info));
+        }
+        
+        .performance-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+            color: white;
+        }
+        
+        .performance-icon.utilization { 
+            background: linear-gradient(135deg, var(--engineer-color), #00f2fe); 
+        }
+        .performance-icon.success { 
+            background: linear-gradient(135deg, var(--project-color), #38f9d7); 
+        }
+        .performance-icon.efficiency { 
+            background: linear-gradient(135deg, var(--skill-color), #feb47b); 
+        }
+        .performance-icon.satisfaction { 
+            background: linear-gradient(135deg, var(--performance-color), #ffa726); 
+        }
+        
+        .performance-value {
+            font-size: 2.8rem;
+            font-weight: bold;
+            color: var(--ses-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .performance-label {
+            font-size: 1.1rem;
+            color: var(--ses-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .performance-progress {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 10px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        
+        .performance-progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.8s ease;
+        }
+        
+        .progress-utilization { 
+            background: linear-gradient(90deg, var(--engineer-color), #00f2fe); 
+        }
+        .progress-success { 
+            background: linear-gradient(90deg, var(--project-color), #38f9d7); 
+        }
+        .progress-efficiency { 
+            background: linear-gradient(90deg, var(--skill-color), #feb47b); 
+        }
+        .progress-satisfaction { 
+            background: linear-gradient(90deg, var(--performance-color), #ffa726); 
+        }
+        
+        .performance-details {
+            font-size: 0.9rem;
+            color: var(--ses-secondary);
+        }
+        
+        .engineer-table {
+            background: white;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .table-header {
+            background: var(--ses-light);
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .table th {
+            background: var(--ses-light);
+            border: none;
+            font-weight: 600;
+            padding: 1rem;
+            color: var(--ses-dark);
+        }
+        
+        .table td {
+            border: none;
+            padding: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .engineer-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--ses-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .skill-tag {
+            display: inline-block;
+            background: rgba(13, 110, 253, 0.1);
+            color: var(--ses-primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            margin: 0.125rem;
+        }
+        
+        .skill-tag.advanced {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--ses-success);
+        }
+        
+        .skill-tag.expert {
+            background: rgba(255, 193, 7, 0.1);
+            color: #b08800;
+        }
+        
+        .rating-stars {
+            color: #ffc107;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .status-active { background: var(--ses-success); }
+        .status-assigned { background: var(--ses-info); }
+        .status-available { background: var(--ses-warning); }
+        .status-inactive { background: var(--ses-secondary); }
+        
+        .project-timeline {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .timeline-item {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 60px;
+            bottom: -10px;
+            width: 2px;
+            background: #e9ecef;
+        }
+        
+        .timeline-item:last-child::before {
+            display: none;
+        }
+        
+        .timeline-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1rem;
+            z-index: 1;
+        }
+        
+        .timeline-icon.completed { background: var(--ses-success); }
+        .timeline-icon.active { background: var(--ses-primary); }
+        .timeline-icon.planned { background: var(--ses-secondary); }
+        
+        .timeline-content {
+            flex: 1;
+        }
+        
+        .timeline-title {
+            font-weight: 600;
+            color: var(--ses-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .timeline-meta {
+            font-size: 0.9rem;
+            color: var(--ses-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .timeline-description {
+            font-size: 0.9rem;
+            color: var(--ses-dark);
+        }
+        
+        .floating-actions {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        
+        .floating-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+            margin-bottom: 0.5rem;
+            border: none;
+            transition: all 0.3s;
+        }
+        
+        .floating-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .overview-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .performance-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .chart-canvas {
+                height: 300px;
+            }
+            .stat-value {
+                font-size: 2rem;
+            }
+            .performance-value {
+                font-size: 2.2rem;
+            }
+            .custom-tabs .nav-link {
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body x-data="engineerAnalysis" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>管理者 田中
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            
+            <!-- 分析ヘッダー -->
+            <div class="analysis-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="h2 mb-2">👥 技術者・案件分析レポート</h1>
+                        <p class="mb-0 opacity-75">技術者パフォーマンスと案件成功率の詳細分析</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="small opacity-75">分析期間</div>
+                        <div class="h5 mb-1" x-text="analysisConfig.period"></div>
+                        <div class="small opacity-75">最終更新: <span x-text="lastUpdated"></span></div>
+                    </div>
+                </div>
+                
+                <!-- 概要統計 -->
+                <div class="overview-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" x-text="overview.totalEngineers"></div>
+                        <div class="stat-label">登録技術者数</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="overview.engineersTrend.icon"></i>
+                            <span x-text="overview.engineersTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" x-text="overview.activeProjects"></div>
+                        <div class="stat-label">稼働中案件</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="overview.projectsTrend.icon"></i>
+                            <span x-text="overview.projectsTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" x-text="overview.utilizationRate + '%'"></div>
+                        <div class="stat-label">全体稼働率</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="overview.utilizationTrend.icon"></i>
+                            <span x-text="overview.utilizationTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" x-text="overview.matchingRate + '%'"></div>
+                        <div class="stat-label">マッチング成功率</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="overview.matchingTrend.icon"></i>
+                            <span x-text="overview.matchingTrend.text"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 分析コントロール -->
+            <div class="analysis-controls">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-3">
+                        <label class="form-label">分析期間</label>
+                        <select class="form-select" x-model="filters.period" @change="updateAnalysis()">
+                            <option value="month">月次</option>
+                            <option value="quarter">四半期</option>
+                            <option value="year">年次</option>
+                            <option value="custom">カスタム</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">技術領域</label>
+                        <select class="form-select" x-model="filters.technology">
+                            <option value="all">全技術領域</option>
+                            <option value="web">Web開発</option>
+                            <option value="mobile">モバイル開発</option>
+                            <option value="ai">AI・機械学習</option>
+                            <option value="infrastructure">インフラ</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">経験レベル</label>
+                        <select class="form-select" x-model="filters.experience">
+                            <option value="all">全レベル</option>
+                            <option value="junior">ジュニア（1-3年）</option>
+                            <option value="mid">ミドル（4-7年）</option>
+                            <option value="senior">シニア（8年以上）</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary" @click="resetFilters()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>リセット
+                            </button>
+                            <button class="btn btn-primary" @click="applyFilters()">
+                                <i class="bi bi-search me-1"></i>分析実行
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- パフォーマンス指標 -->
+            <div class="performance-grid">
+                <div class="performance-card">
+                    <div class="performance-icon utilization">
+                        <i class="bi bi-person-check"></i>
+                    </div>
+                    <div class="performance-value" x-text="performance.utilization + '%'"></div>
+                    <div class="performance-label">平均稼働率</div>
+                    <div class="performance-progress">
+                        <div class="performance-progress-fill progress-utilization" 
+                             :style="`width: ${performance.utilization}%`"></div>
+                    </div>
+                    <div class="performance-details">
+                        目標: 85% | 前月比: +2.3%
+                    </div>
+                </div>
+                <div class="performance-card">
+                    <div class="performance-icon success">
+                        <i class="bi bi-trophy"></i>
+                    </div>
+                    <div class="performance-value" x-text="performance.projectSuccess + '%'"></div>
+                    <div class="performance-label">案件成功率</div>
+                    <div class="performance-progress">
+                        <div class="performance-progress-fill progress-success" 
+                             :style="`width: ${performance.projectSuccess}%`"></div>
+                    </div>
+                    <div class="performance-details">
+                        目標: 90% | 前月比: +1.8%
+                    </div>
+                </div>
+                <div class="performance-card">
+                    <div class="performance-icon efficiency">
+                        <i class="bi bi-lightning"></i>
+                    </div>
+                    <div class="performance-value" x-text="performance.efficiency + '%'"></div>
+                    <div class="performance-label">マッチング効率</div>
+                    <div class="performance-progress">
+                        <div class="performance-progress-fill progress-efficiency" 
+                             :style="`width: ${performance.efficiency}%`"></div>
+                    </div>
+                    <div class="performance-details">
+                        目標: 75% | 前月比: +3.1%
+                    </div>
+                </div>
+                <div class="performance-card">
+                    <div class="performance-icon satisfaction">
+                        <i class="bi bi-star"></i>
+                    </div>
+                    <div class="performance-value" x-text="performance.satisfaction"></div>
+                    <div class="performance-label">平均評価</div>
+                    <div class="performance-progress">
+                        <div class="performance-progress-fill progress-satisfaction" 
+                             :style="`width: ${(performance.satisfaction / 5) * 100}%`"></div>
+                    </div>
+                    <div class="performance-details">
+                        目標: 4.5 | 前月比: +0.2
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <div class="tab-navigation">
+                <ul class="nav custom-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#engineers-tab" 
+                                @click="currentTab = 'engineers'">
+                            <i class="bi bi-people me-2"></i>技術者分析
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#projects-tab"
+                                @click="currentTab = 'projects'">
+                            <i class="bi bi-briefcase me-2"></i>案件分析
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#skills-tab"
+                                @click="currentTab = 'skills'">
+                            <i class="bi bi-award me-2"></i>スキル分析
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#matching-tab"
+                                @click="currentTab = 'matching'">
+                            <i class="bi bi-heart me-2"></i>マッチング分析
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content">
+                <!-- 技術者分析 -->
+                <div class="tab-pane fade show active" id="engineers-tab" x-show="currentTab === 'engineers'">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h3 class="section-title">技術者稼働率推移</h3>
+                                    <div class="d-flex gap-2">
+                                        <select class="form-select form-select-sm" x-model="engineerChartType">
+                                            <option value="line">線グラフ</option>
+                                            <option value="bar">棒グラフ</option>
+                                            <option value="area">エリアグラフ</option>
+                                        </select>
+                                        <button class="btn btn-outline-primary btn-sm" @click="exportChart('engineer')">
+                                            <i class="bi bi-download me-1"></i>エクスポート
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="chart-canvas">
+                                    <canvas id="engineerUtilizationChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h5 class="section-title">スキルレベル分布</h5>
+                                </div>
+                                <div class="chart-canvas small">
+                                    <canvas id="skillLevelChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="engineer-table">
+                        <div class="table-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">技術者パフォーマンス詳細</h5>
+                                <div class="d-flex gap-2">
+                                    <select class="form-select form-select-sm" x-model="engineerSort">
+                                        <option value="utilization">稼働率順</option>
+                                        <option value="rating">評価順</option>
+                                        <option value="experience">経験年数順</option>
+                                        <option value="name">名前順</option>
+                                    </select>
+                                    <button class="btn btn-outline-primary btn-sm" @click="exportEngineerData()">
+                                        <i class="bi bi-download me-1"></i>CSV出力
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>技術者</th>
+                                        <th>ステータス</th>
+                                        <th>稼働率</th>
+                                        <th>主要スキル</th>
+                                        <th>評価</th>
+                                        <th>現在の案件</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="engineer in engineers" :key="engineer.id">
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="engineer-avatar" x-text="engineer.initials"></div>
+                                                    <div>
+                                                        <div class="fw-medium" x-text="engineer.name"></div>
+                                                        <small class="text-muted" x-text="engineer.experience + '年経験'"></small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="status-indicator" :class="'status-' + engineer.status"></div>
+                                                    <span x-text="engineer.statusText"></span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div x-text="engineer.utilization + '%'"></div>
+                                                <div class="progress mt-1" style="height: 4px;">
+                                                    <div class="progress-bar bg-primary" 
+                                                         :style="`width: ${engineer.utilization}%`"></div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <template x-for="skill in engineer.skills" :key="skill">
+                                                    <span class="skill-tag" :class="getSkillClass(skill)" x-text="skill"></span>
+                                                </template>
+                                            </td>
+                                            <td>
+                                                <div class="rating-stars">
+                                                    <template x-for="star in 5" :key="star">
+                                                        <i class="bi" :class="star <= engineer.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                                    </template>
+                                                </div>
+                                                <small class="text-muted" x-text="engineer.rating + '/5.0'"></small>
+                                            </td>
+                                            <td>
+                                                <div x-text="engineer.currentProject"></div>
+                                                <small class="text-muted" x-text="engineer.projectPeriod"></small>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-outline-secondary btn-sm" @click="viewEngineerDetail(engineer.id)">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 案件分析 -->
+                <div class="tab-pane fade" id="projects-tab" x-show="currentTab === 'projects'">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h3 class="section-title">案件成功率推移</h3>
+                                </div>
+                                <div class="chart-canvas">
+                                    <canvas id="projectSuccessChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h3 class="section-title">案件規模別分析</h3>
+                                </div>
+                                <div class="chart-canvas">
+                                    <canvas id="projectSizeChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="project-timeline">
+                        <div class="section-header">
+                            <h3 class="section-title">進行中案件タイムライン</h3>
+                            <button class="btn btn-outline-primary btn-sm" @click="viewAllProjects()">
+                                <i class="bi bi-list me-1"></i>全案件表示
+                            </button>
+                        </div>
+                        <template x-for="project in projectTimeline" :key="project.id">
+                            <div class="timeline-item">
+                                <div class="timeline-icon" :class="project.status">
+                                    <i class="bi" :class="project.icon"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <div class="timeline-title" x-text="project.name"></div>
+                                    <div class="timeline-meta">
+                                        <span x-text="project.client"></span> • 
+                                        <span x-text="project.period"></span> • 
+                                        <span x-text="project.team + '名'"></span>
+                                    </div>
+                                    <div class="timeline-description" x-text="project.description"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- スキル分析 -->
+                <div class="tab-pane fade" id="skills-tab" x-show="currentTab === 'skills'">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h3 class="section-title">技術トレンド分析</h3>
+                                </div>
+                                <div class="chart-canvas">
+                                    <canvas id="skillTrendChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h5 class="section-title">需要の高いスキル</h5>
+                                </div>
+                                <div class="chart-canvas small">
+                                    <canvas id="skillDemandChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- マッチング分析 -->
+                <div class="tab-pane fade" id="matching-tab" x-show="currentTab === 'matching'">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h3 class="section-title">マッチング成功率</h3>
+                                </div>
+                                <div class="chart-canvas">
+                                    <canvas id="matchingSuccessChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="chart-section">
+                                <div class="section-header">
+                                    <h3 class="section-title">マッチング所要時間</h3>
+                                </div>
+                                <div class="chart-canvas">
+                                    <canvas id="matchingTimeChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- フローティングアクション -->
+    <div class="floating-actions">
+        <button class="btn btn-success floating-button" @click="generateReport()" title="レポート生成">
+            <i class="bi bi-file-text"></i>
+        </button>
+        <button class="btn btn-primary floating-button" @click="refreshData()" title="データ更新">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('engineerAnalysis', () => ({
+                currentTab: 'engineers',
+                lastUpdated: '15:30',
+                engineerChartType: 'line',
+                engineerSort: 'utilization',
+                
+                analysisConfig: {
+                    period: '2025年6月'
+                },
+                
+                filters: {
+                    period: 'month',
+                    technology: 'all',
+                    experience: 'all'
+                },
+                
+                overview: {
+                    totalEngineers: 156,
+                    engineersTrend: { icon: 'bi-arrow-up', text: '+8名' },
+                    activeProjects: 28,
+                    projectsTrend: { icon: 'bi-arrow-up', text: '+3件' },
+                    utilizationRate: 92.3,
+                    utilizationTrend: { icon: 'bi-arrow-up', text: '+2.3%' },
+                    matchingRate: 78.5,
+                    matchingTrend: { icon: 'bi-arrow-up', text: '+5.1%' }
+                },
+                
+                performance: {
+                    utilization: 92.3,
+                    projectSuccess: 87.5,
+                    efficiency: 78.5,
+                    satisfaction: 4.2
+                },
+                
+                engineers: [
+                    {
+                        id: 'eng-001',
+                        name: '山田太郎',
+                        initials: '山田',
+                        experience: 8,
+                        utilization: 95.2,
+                        status: 'active',
+                        statusText: 'アサイン中',
+                        skills: ['React', 'TypeScript', 'AWS'],
+                        rating: 4.8,
+                        currentProject: 'ECサイトリニューアル',
+                        projectPeriod: '2025/04-2025/08'
+                    },
+                    {
+                        id: 'eng-002',
+                        name: '佐藤花子',
+                        initials: '佐藤',
+                        experience: 5,
+                        utilization: 88.7,
+                        status: 'active',
+                        statusText: 'アサイン中',
+                        skills: ['Python', 'Django', 'PostgreSQL'],
+                        rating: 4.5,
+                        currentProject: '基幹システム開発',
+                        projectPeriod: '2025/03-2025/07'
+                    },
+                    {
+                        id: 'eng-003',
+                        name: '田中一郎',
+                        initials: '田中',
+                        experience: 12,
+                        utilization: 100.0,
+                        status: 'active',
+                        statusText: 'アサイン中',
+                        skills: ['Java', 'Spring', 'Kubernetes'],
+                        rating: 4.9,
+                        currentProject: 'マイクロサービス移行',
+                        projectPeriod: '2025/02-2025/09'
+                    },
+                    {
+                        id: 'eng-004',
+                        name: '鈴木次郎',
+                        initials: '鈴木',
+                        experience: 3,
+                        utilization: 75.0,
+                        status: 'available',
+                        statusText: 'アサイン可能',
+                        skills: ['Flutter', 'Dart', 'Firebase'],
+                        rating: 4.1,
+                        currentProject: '-',
+                        projectPeriod: '-'
+                    }
+                ],
+                
+                projectTimeline: [
+                    {
+                        id: 1,
+                        name: 'ECサイトリニューアル',
+                        client: 'A商事株式会社',
+                        period: '2025/04-2025/08',
+                        team: 5,
+                        status: 'active',
+                        icon: 'bi-play-circle',
+                        description: 'React/TypeScriptによるフロントエンド刷新とAPI新規開発'
+                    },
+                    {
+                        id: 2,
+                        name: '基幹システム開発',
+                        client: 'B工業株式会社',
+                        period: '2025/03-2025/07',
+                        team: 8,
+                        status: 'active',
+                        icon: 'bi-play-circle',
+                        description: 'Django/PostgreSQLによる在庫管理システムの構築'
+                    },
+                    {
+                        id: 3,
+                        name: 'マイクロサービス移行',
+                        client: 'C銀行',
+                        period: '2025/02-2025/09',
+                        team: 12,
+                        status: 'active',
+                        icon: 'bi-play-circle',
+                        description: 'モノリシックアーキテクチャからマイクロサービスへの段階移行'
+                    },
+                    {
+                        id: 4,
+                        name: 'AIチャットボット開発',
+                        client: 'D商事株式会社',
+                        period: '2025/07-2025/10',
+                        team: 4,
+                        status: 'planned',
+                        icon: 'bi-clock',
+                        description: 'GPT-4を活用したカスタマーサポート自動化システム'
+                    }
+                ],
+                
+                init() {
+                    this.initializeCharts();
+                },
+                
+                updateAnalysis() {
+                    console.log('分析更新:', this.filters);
+                    this.refreshData();
+                },
+                
+                resetFilters() {
+                    this.filters = {
+                        period: 'month',
+                        technology: 'all',
+                        experience: 'all'
+                    };
+                },
+                
+                applyFilters() {
+                    console.log('フィルター適用:', this.filters);
+                    this.refreshData();
+                },
+                
+                getSkillClass(skill) {
+                    const advancedSkills = ['React', 'TypeScript', 'AWS', 'Kubernetes'];
+                    const expertSkills = ['Java', 'Spring'];
+                    
+                    if (expertSkills.includes(skill)) return 'expert';
+                    if (advancedSkills.includes(skill)) return 'advanced';
+                    return '';
+                },
+                
+                viewEngineerDetail(engineerId) {
+                    console.log('技術者詳細表示:', engineerId);
+                },
+                
+                exportChart(chartId) {
+                    console.log('チャートエクスポート:', chartId);
+                },
+                
+                exportEngineerData() {
+                    console.log('技術者データエクスポート');
+                },
+                
+                viewAllProjects() {
+                    console.log('全案件表示');
+                },
+                
+                generateReport() {
+                    console.log('レポート生成');
+                },
+                
+                refreshData() {
+                    console.log('データ更新中...');
+                    this.lastUpdated = new Date().toLocaleTimeString('ja-JP', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                },
+                
+                initializeCharts() {
+                    this.$nextTick(() => {
+                        this.createEngineerUtilizationChart();
+                        this.createSkillLevelChart();
+                        this.createProjectSuccessChart();
+                        this.createProjectSizeChart();
+                        this.createSkillTrendChart();
+                        this.createSkillDemandChart();
+                        this.createMatchingSuccessChart();
+                        this.createMatchingTimeChart();
+                    });
+                },
+                
+                createEngineerUtilizationChart() {
+                    const ctx = document.getElementById('engineerUtilizationChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '全体稼働率',
+                                data: [88.5, 90.2, 89.1, 91.8, 90.0, 92.3],
+                                borderColor: '#4facfe',
+                                backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }, {
+                                label: '目標稼働率',
+                                data: [85, 85, 85, 85, 85, 85],
+                                borderColor: '#ff6b6b',
+                                borderDash: [5, 5],
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    min: 80,
+                                    max: 100,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createSkillLevelChart() {
+                    const ctx = document.getElementById('skillLevelChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['ジュニア', 'ミドル', 'シニア', 'エキスパート'],
+                            datasets: [{
+                                data: [35, 48, 52, 21],
+                                backgroundColor: [
+                                    '#4facfe',
+                                    '#43e97b',
+                                    '#fa709a',
+                                    '#fee140'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createProjectSuccessChart() {
+                    const ctx = document.getElementById('projectSuccessChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '成功',
+                                data: [8, 7, 9, 6, 8, 7],
+                                backgroundColor: '#43e97b'
+                            }, {
+                                label: '進行中',
+                                data: [3, 4, 2, 5, 4, 6],
+                                backgroundColor: '#4facfe'
+                            }, {
+                                label: '問題あり',
+                                data: [1, 1, 0, 2, 1, 1],
+                                backgroundColor: '#ff6b6b'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    stacked: true
+                                },
+                                y: {
+                                    stacked: true
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createProjectSizeChart() {
+                    const ctx = document.getElementById('projectSizeChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['小規模（1-3名）', '中規模（4-8名）', '大規模（9名以上）'],
+                            datasets: [{
+                                data: [12, 11, 5],
+                                backgroundColor: [
+                                    '#4facfe',
+                                    '#43e97b',
+                                    '#fa709a'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createSkillTrendChart() {
+                    const ctx = document.getElementById('skillTrendChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'radar',
+                        data: {
+                            labels: ['Web開発', 'モバイル', 'AI/ML', 'インフラ', 'データベース', 'DevOps'],
+                            datasets: [{
+                                label: '現在のスキル保有者数',
+                                data: [95, 42, 28, 67, 78, 51],
+                                borderColor: '#4facfe',
+                                backgroundColor: 'rgba(79, 172, 254, 0.2)'
+                            }, {
+                                label: '市場需要',
+                                data: [88, 65, 85, 72, 68, 74],
+                                borderColor: '#fa709a',
+                                backgroundColor: 'rgba(247, 112, 154, 0.2)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    max: 100
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createSkillDemandChart() {
+                    const ctx = document.getElementById('skillDemandChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['React', 'Python', 'AWS', 'Java', 'Docker'],
+                            datasets: [{
+                                data: [85, 78, 72, 68, 65],
+                                backgroundColor: [
+                                    '#4facfe',
+                                    '#43e97b',
+                                    '#fa709a',
+                                    '#fee140',
+                                    '#ff6b6b'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createMatchingSuccessChart() {
+                    const ctx = document.getElementById('matchingSuccessChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: 'マッチング成功率',
+                                data: [72.5, 75.3, 73.8, 76.2, 73.4, 78.5],
+                                borderColor: '#43e97b',
+                                backgroundColor: 'rgba(67, 233, 123, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    min: 60,
+                                    max: 90,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createMatchingTimeChart() {
+                    const ctx = document.getElementById('matchingTimeChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '平均マッチング日数',
+                                data: [8.5, 7.2, 9.1, 6.8, 8.0, 6.2],
+                                backgroundColor: '#fa709a'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '日';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

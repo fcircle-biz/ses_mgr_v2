@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>請求書作成・編集 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .invoice-header {
+            background: linear-gradient(135deg, var(--ses-success), #0d5e2a);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.375rem;
+            margin-bottom: 2rem;
+        }
+        
+        .line-item-row {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+            transition: all 0.2s ease;
+        }
+        
+        .line-item-row:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .line-item-row.removing {
+            opacity: 0.5;
+            transform: scale(0.98);
+        }
+        
+        .amount-display {
+            font-size: 1.25rem;
+            font-weight: bold;
+            text-align: right;
+            padding: 0.75rem;
+            background: #e3f2fd;
+            border-radius: 0.375rem;
+            margin: 0.5rem 0;
+        }
+        
+        .tax-calculation {
+            background: #fff3e0;
+            border: 1px solid #ffcc02;
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+        
+        .invoice-preview {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 2rem;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .preview-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #333;
+        }
+        
+        .customer-selector {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .customer-selector:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .customer-selector.selected {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .moneyforward-sync {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+        
+        .mf-synced {
+            background: #e8f5e8;
+            border: 1px solid var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .mf-pending {
+            background: #fff3e0;
+            border: 1px solid var(--ses-warning);
+            color: var(--ses-warning);
+        }
+        
+        .mf-error {
+            background: #ffebee;
+            border: 1px solid var(--ses-danger);
+            color: var(--ses-danger);
+        }
+        
+        .template-selector {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .template-selector:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .template-selector.selected {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .progress-tracker {
+            position: sticky;
+            top: 20px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1.5rem;
+        }
+        
+        .validation-message {
+            color: var(--ses-danger);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+        
+        .currency-selector {
+            min-width: 120px;
+        }
+        
+        .auto-calc {
+            background: #e8f5e8;
+            border: 1px solid var(--ses-success);
+            color: var(--ses-success);
+            font-size: 0.75rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            margin-left: 0.5rem;
+        }
+        
+        .duplicate-warning {
+            background: #fff3e0;
+            border: 1px solid var(--ses-warning);
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .invoice-actions {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            border-top: 1px solid #dee2e6;
+            padding: 1rem;
+            margin: 2rem -1rem -1rem -1rem;
+            border-radius: 0 0 0.375rem 0.375rem;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loading-overlay.active {
+            display: flex;
+        }
+        
+        .invoice-number-input {
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--ses-primary);
+        }
+        
+        .project-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body x-data="invoiceEditor" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">請求管理</a></li>
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">請求書一覧</a></li>
+                            <li class="breadcrumb-item active" aria-current="page" x-text="isEditMode ? '請求書編集' : '請求書作成'">請求書作成</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2" x-text="isEditMode ? '請求書編集' : '請求書作成'">請求書作成</h1>
+                    <p class="text-muted mb-0">工数データまたは手動入力から請求書を作成・MoneyForward連携</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <select class="form-select currency-selector" x-model="selectedCurrency">
+                        <option value="JPY">JPY (円)</option>
+                        <option value="USD">USD (ドル)</option>
+                        <option value="EUR">EUR (ユーロ)</option>
+                    </select>
+                    <button class="btn btn-outline-secondary" @click="saveDraft()" :disabled="!isDirty">
+                        <i class="bi bi-bookmark me-1"></i>下書き保存
+                    </button>
+                    <button class="btn btn-outline-danger" @click="cancelEdit()">
+                        <i class="bi bi-x me-1"></i>キャンセル
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 請求書ヘッダー情報 -->
+            <div class="invoice-header">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <h4 class="mb-3">請求書情報</h4>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="mb-2">
+                                    <strong>請求書番号</strong>
+                                    <div class="invoice-number-input h5" x-text="invoice.invoiceNumber">INV-2025-001</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-2">
+                                    <strong>ステータス</strong>
+                                    <div>
+                                        <span class="badge bg-light text-dark" x-text="getStatusText(invoice.status)">下書き</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-2">
+                                    <strong>請求金額</strong>
+                                    <div class="h5 text-white" x-text="formatCurrency(calculateTotalAmount())">¥0</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-2">
+                                    <strong>MoneyForward</strong>
+                                    <div class="moneyforward-sync" :class="getMoneyForwardClass(invoice.moneyForwardStatus)">
+                                        <i class="bi" :class="getMoneyForwardIcon(invoice.moneyForwardStatus)"></i>
+                                        <span x-text="getMoneyForwardText(invoice.moneyForwardStatus)">未同期</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 text-end">
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-light btn-sm" @click="loadFromTimesheet()" x-show="!isEditMode">
+                                <i class="bi bi-clock me-1"></i>工数から生成
+                            </button>
+                            <button class="btn btn-warning btn-sm" @click="previewInvoice()">
+                                <i class="bi bi-eye me-1"></i>プレビュー
+                            </button>
+                            <button class="btn btn-info btn-sm" @click="syncWithMoneyForward()" :disabled="invoice.moneyForwardStatus === 'synced'">
+                                <i class="bi bi-cloud me-1"></i>MF同期
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 重複確認警告 -->
+            <div class="duplicate-warning" x-show="duplicateWarning.show">
+                <div class="d-flex align-items-start">
+                    <i class="bi bi-exclamation-triangle me-2 text-warning" style="font-size: 1.25rem;"></i>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">重複の可能性があります</h6>
+                        <p class="mb-2" x-text="duplicateWarning.message"></p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-warning btn-sm" @click="viewDuplicates()">
+                                <i class="bi bi-eye me-1"></i>類似請求書を確認
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @click="dismissDuplicateWarning()">
+                                <i class="bi bi-x me-1"></i>無視
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- 請求書作成フォーム -->
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs">
+                                <li class="nav-item">
+                                    <button class="nav-link" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">
+                                        <i class="bi bi-info-circle me-1"></i>基本情報
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" :class="{ active: activeTab === 'items' }" @click="activeTab = 'items'">
+                                        <i class="bi bi-list-ul me-1"></i>明細
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" :class="{ active: activeTab === 'payment' }" @click="activeTab = 'payment'">
+                                        <i class="bi bi-credit-card me-1"></i>支払条件
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" :class="{ active: activeTab === 'preview' }" @click="activeTab = 'preview'">
+                                        <i class="bi bi-eye me-1"></i>プレビュー
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <div class="card-body position-relative">
+                            <div class="loading-overlay" :class="{ active: loading }">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                            
+                            <!-- 基本情報タブ -->
+                            <div x-show="activeTab === 'basic'">
+                                <!-- 顧客選択 -->
+                                <div class="mb-4">
+                                    <h6>顧客選択</h6>
+                                    <div class="row">
+                                        <template x-for="customer in customers" :key="customer.id">
+                                            <div class="col-md-6 mb-3">
+                                                <div class="customer-selector" 
+                                                     :class="{ selected: invoice.customerId === customer.id }"
+                                                     @click="selectCustomer(customer)">
+                                                    <div class="d-flex align-items-start">
+                                                        <img :src="customer.logo" class="me-3" width="40" height="40" style="border-radius: 0.25rem;">
+                                                        <div class="flex-grow-1">
+                                                            <h6 class="mb-1" x-text="customer.name"></h6>
+                                                            <div class="small text-muted mb-1" x-text="customer.address"></div>
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <span class="badge bg-light text-dark" x-text="customer.type"></span>
+                                                                <div class="moneyforward-sync" :class="getMoneyForwardClass(customer.moneyForwardStatus)" x-show="customer.moneyForwardStatus">
+                                                                    <i class="bi" :class="getMoneyForwardIcon(customer.moneyForwardStatus)"></i>
+                                                                    <span class="small">MF</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <!-- プロジェクト情報 -->
+                                <div class="project-info" x-show="selectedProject">
+                                    <h6><i class="bi bi-briefcase me-2"></i>プロジェクト情報</h6>
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <div><strong x-text="selectedProject?.name"></strong></div>
+                                            <div class="text-muted small" x-text="selectedProject?.description"></div>
+                                        </div>
+                                        <div class="col-md-4 text-end">
+                                            <span class="badge bg-info" x-text="selectedProject?.status"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 基本項目 -->
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">請求書番号 <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control invoice-number-input" x-model="invoice.invoiceNumber" required>
+                                        <div class="validation-message" x-show="errors.invoiceNumber" x-text="errors.invoiceNumber"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">プロジェクト <span class="text-danger">*</span></label>
+                                        <select class="form-select" x-model="invoice.projectId" @change="onProjectChange()" required>
+                                            <option value="">選択してください</option>
+                                            <template x-for="project in projects" :key="project.id">
+                                                <option :value="project.id" x-text="project.name"></option>
+                                            </template>
+                                        </select>
+                                        <div class="validation-message" x-show="errors.projectId" x-text="errors.projectId"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">請求期間（開始） <span class="text-danger">*</span></label>
+                                        <input type="date" class="form-control" x-model="invoice.billingPeriodStart" required>
+                                        <div class="validation-message" x-show="errors.billingPeriodStart" x-text="errors.billingPeriodStart"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">請求期間（終了） <span class="text-danger">*</span></label>
+                                        <input type="date" class="form-control" x-model="invoice.billingPeriodEnd" required>
+                                        <div class="validation-message" x-show="errors.billingPeriodEnd" x-text="errors.billingPeriodEnd"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">発行日 <span class="text-danger">*</span></label>
+                                        <input type="date" class="form-control" x-model="invoice.issueDate" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">支払期限 <span class="text-danger">*</span></label>
+                                        <input type="date" class="form-control" x-model="invoice.dueDate" required>
+                                        <div class="validation-message" x-show="errors.dueDate" x-text="errors.dueDate"></div>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">備考・特記事項</label>
+                                        <textarea class="form-control" x-model="invoice.notes" rows="3" placeholder="支払条件や特記事項があれば入力してください"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 明細タブ -->
+                            <div x-show="activeTab === 'items'">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6>請求明細</h6>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-info btn-sm" @click="loadTimesheetData()">
+                                            <i class="bi bi-clock me-1"></i>工数データ取込
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" @click="addLineItem()">
+                                            <i class="bi bi-plus me-1"></i>明細追加
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <template x-for="(item, index) in invoice.lineItems" :key="item.id">
+                                    <div class="line-item-row" :class="{ removing: item.removing }">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h6 class="mb-0">明細 <span x-text="index + 1"></span></h6>
+                                            <button class="btn btn-outline-danger btn-sm" @click="removeLineItem(index)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">項目名 <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" x-model="item.description" 
+                                                       placeholder="例：システム開発作業" @input="calculateItemTotal(item)" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">カテゴリ</label>
+                                                <select class="form-select" x-model="item.category">
+                                                    <option value="">選択してください</option>
+                                                    <option value="development">開発作業</option>
+                                                    <option value="design">設計作業</option>
+                                                    <option value="testing">テスト作業</option>
+                                                    <option value="maintenance">保守作業</option>
+                                                    <option value="consulting">コンサルティング</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">数量 <span class="text-danger">*</span></label>
+                                                <input type="number" class="form-control" x-model="item.quantity" 
+                                                       min="0" step="0.1" @input="calculateItemTotal(item)" required>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">単位</label>
+                                                <select class="form-select" x-model="item.unit">
+                                                    <option value="hours">時間</option>
+                                                    <option value="days">日</option>
+                                                    <option value="months">月</option>
+                                                    <option value="pieces">個</option>
+                                                    <option value="projects">件</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">単価 <span class="text-danger">*</span></label>
+                                                <input type="number" class="form-control" x-model="item.unitPrice" 
+                                                       min="0" @input="calculateItemTotal(item)" required>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">税率 (%)</label>
+                                                <select class="form-select" x-model="item.taxRate" @change="calculateItemTotal(item)">
+                                                    <option value="0">0%</option>
+                                                    <option value="8">8%</option>
+                                                    <option value="10">10%</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="amount-display">
+                                                    小計: <span x-text="formatCurrency(item.subtotal || 0)"></span>
+                                                    <span x-show="item.taxAmount > 0">
+                                                        + 税額: <span x-text="formatCurrency(item.taxAmount || 0)"></span>
+                                                    </span>
+                                                    = 合計: <span x-text="formatCurrency(item.total || 0)"></span>
+                                                    <span class="auto-calc" x-show="item.isAutoCalculated">自動計算</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-12" x-show="item.note || editing === item.id">
+                                                <label class="form-label">明細備考</label>
+                                                <textarea class="form-control" x-model="item.note" rows="2" 
+                                                          placeholder="この明細に関する詳細情報"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                
+                                <!-- 合計計算 -->
+                                <div class="tax-calculation">
+                                    <h6><i class="bi bi-calculator me-2"></i>合計計算</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <table class="table table-sm">
+                                                <tr>
+                                                    <td>税抜合計</td>
+                                                    <td class="text-end" x-text="formatCurrency(calculateSubtotal())"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>消費税（8%）</td>
+                                                    <td class="text-end" x-text="formatCurrency(calculateTaxAmount(8))"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>消費税（10%）</td>
+                                                    <td class="text-end" x-text="formatCurrency(calculateTaxAmount(10))"></td>
+                                                </tr>
+                                                <tr class="table-primary">
+                                                    <td><strong>請求金額</strong></td>
+                                                    <td class="text-end"><strong x-text="formatCurrency(calculateTotalAmount())"></strong></td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">割引金額</label>
+                                                <input type="number" class="form-control" x-model="invoice.discountAmount" 
+                                                       min="0" @input="calculateTotalAmount()">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">調整金額</label>
+                                                <input type="number" class="form-control" x-model="invoice.adjustmentAmount" 
+                                                       @input="calculateTotalAmount()">
+                                                <div class="form-text">端数調整等に使用</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 支払条件タブ -->
+                            <div x-show="activeTab === 'payment'">
+                                <h6>支払条件・設定</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">支払方法</label>
+                                        <select class="form-select" x-model="invoice.paymentMethod">
+                                            <option value="BANK_TRANSFER">銀行振込</option>
+                                            <option value="CREDIT_CARD">クレジットカード</option>
+                                            <option value="CASH">現金</option>
+                                            <option value="CHECK">小切手</option>
+                                            <option value="OTHER">その他</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">支払期限</label>
+                                        <select class="form-select" x-model="invoice.paymentTerms" @change="updateDueDate()">
+                                            <option value="immediate">即日</option>
+                                            <option value="7days">7日後</option>
+                                            <option value="15days">15日後</option>
+                                            <option value="30days">30日後</option>
+                                            <option value="60days">60日後</option>
+                                            <option value="custom">カスタム</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">振込先銀行</label>
+                                        <select class="form-select" x-model="invoice.bankAccountId">
+                                            <option value="">選択してください</option>
+                                            <template x-for="account in bankAccounts" :key="account.id">
+                                                <option :value="account.id" x-text="`${account.bankName} ${account.accountType} ${account.accountNumber}`"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">振込手数料</label>
+                                        <select class="form-select" x-model="invoice.transferFeeBearer">
+                                            <option value="customer">顧客負担</option>
+                                            <option value="company">当社負担</option>
+                                            <option value="each">各自負担</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">支払条件詳細</label>
+                                        <textarea class="form-control" x-model="invoice.paymentNotes" rows="3" 
+                                                  placeholder="支払いに関する詳細条件や注意事項"></textarea>
+                                    </div>
+                                </div>
+                                
+                                <!-- MoneyForward設定 -->
+                                <hr class="my-4">
+                                <h6><i class="bi bi-cloud me-2"></i>MoneyForward連携設定</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" x-model="invoice.autoSyncMF">
+                                            <label class="form-check-label">自動でMoneyForwardに同期</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" x-model="invoice.autoCreateMFInvoice">
+                                            <label class="form-check-label">MFで請求書を自動作成</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">勘定科目</label>
+                                        <select class="form-select" x-model="invoice.accountingSubject">
+                                            <option value="">選択してください</option>
+                                            <option value="sales">売上高</option>
+                                            <option value="service_revenue">サービス売上高</option>
+                                            <option value="consulting_revenue">コンサルティング売上高</option>
+                                            <option value="development_revenue">開発売上高</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">税区分</label>
+                                        <select class="form-select" x-model="invoice.taxCategory">
+                                            <option value="taxable_10">課税売上 10%</option>
+                                            <option value="taxable_8">課税売上 8%</option>
+                                            <option value="tax_free">非課税売上</option>
+                                            <option value="tax_exempt">免税売上</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- プレビュータブ -->
+                            <div x-show="activeTab === 'preview'">
+                                <div class="invoice-preview">
+                                    <div class="preview-header">
+                                        <h3>請求書</h3>
+                                        <div class="row mt-3">
+                                            <div class="col-6 text-start">
+                                                <div><strong x-text="invoice.invoiceNumber"></strong></div>
+                                                <div class="small">発行日: <span x-text="formatDate(invoice.issueDate)"></span></div>
+                                            </div>
+                                            <div class="col-6 text-end">
+                                                <div class="small">支払期限: <span x-text="formatDate(invoice.dueDate)"></span></div>
+                                                <div class="small">請求期間: <span x-text="`${formatDate(invoice.billingPeriodStart)} ～ ${formatDate(invoice.billingPeriodEnd)}`"></span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 請求先・請求元情報 -->
+                                    <div class="row mb-4">
+                                        <div class="col-6">
+                                            <h6>請求先</h6>
+                                            <div x-show="selectedCustomer">
+                                                <div><strong x-text="selectedCustomer?.name"></strong></div>
+                                                <div class="small" x-text="selectedCustomer?.address"></div>
+                                                <div class="small" x-text="selectedCustomer?.contact"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <h6>請求元</h6>
+                                            <div>
+                                                <div><strong>SES業務システム株式会社</strong></div>
+                                                <div class="small">東京都渋谷区...</div>
+                                                <div class="small">TEL: 03-1234-5678</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 明細表 -->
+                                    <table class="table">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>項目</th>
+                                                <th class="text-center">数量</th>
+                                                <th class="text-center">単位</th>
+                                                <th class="text-end">単価</th>
+                                                <th class="text-end">金額</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="item in invoice.lineItems" :key="item.id">
+                                                <tr>
+                                                    <td>
+                                                        <div x-text="item.description"></div>
+                                                        <div class="small text-muted" x-show="item.note" x-text="item.note"></div>
+                                                    </td>
+                                                    <td class="text-center" x-text="item.quantity"></td>
+                                                    <td class="text-center" x-text="getUnitText(item.unit)"></td>
+                                                    <td class="text-end" x-text="formatCurrency(item.unitPrice)"></td>
+                                                    <td class="text-end" x-text="formatCurrency(item.subtotal)"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td colspan="4" class="text-end"><strong>小計</strong></td>
+                                                <td class="text-end"><strong x-text="formatCurrency(calculateSubtotal())"></strong></td>
+                                            </tr>
+                                            <tr x-show="calculateTaxAmount(8) > 0">
+                                                <td colspan="4" class="text-end">消費税（8%）</td>
+                                                <td class="text-end" x-text="formatCurrency(calculateTaxAmount(8))"></td>
+                                            </tr>
+                                            <tr x-show="calculateTaxAmount(10) > 0">
+                                                <td colspan="4" class="text-end">消費税（10%）</td>
+                                                <td class="text-end" x-text="formatCurrency(calculateTaxAmount(10))"></td>
+                                            </tr>
+                                            <tr x-show="invoice.discountAmount > 0">
+                                                <td colspan="4" class="text-end">割引</td>
+                                                <td class="text-end text-danger">-<span x-text="formatCurrency(invoice.discountAmount)"></span></td>
+                                            </tr>
+                                            <tr class="table-primary">
+                                                <td colspan="4" class="text-end"><strong>請求金額</strong></td>
+                                                <td class="text-end"><strong x-text="formatCurrency(calculateTotalAmount())"></strong></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                    
+                                    <!-- 支払条件・備考 -->
+                                    <div class="mt-4" x-show="invoice.notes || invoice.paymentNotes">
+                                        <div x-show="invoice.notes">
+                                            <h6>備考</h6>
+                                            <p x-text="invoice.notes"></p>
+                                        </div>
+                                        <div x-show="invoice.paymentNotes">
+                                            <h6>支払条件</h6>
+                                            <p x-text="invoice.paymentNotes"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- アクションバー -->
+                        <div class="invoice-actions">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary" @click="loadTemplate()">
+                                        <i class="bi bi-files me-1"></i>テンプレート
+                                    </button>
+                                    <button class="btn btn-outline-info" @click="duplicateInvoice()" x-show="isEditMode">
+                                        <i class="bi bi-copy me-1"></i>複製
+                                    </button>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary" @click="saveDraft()" :disabled="!isFormValid()">
+                                        <i class="bi bi-bookmark me-1"></i>下書き保存
+                                    </button>
+                                    <button class="btn btn-warning" @click="sendForApproval()" :disabled="!isFormValid() || invoice.status !== 'DRAFT'">
+                                        <i class="bi bi-send me-1"></i>承認依頼
+                                    </button>
+                                    <button class="btn btn-success" @click="publishInvoice()" :disabled="!isFormValid()">
+                                        <i class="bi bi-check-circle me-1"></i>発行
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- サイドバー - 進捗・ヘルプ -->
+                <div class="col-lg-4">
+                    <div class="progress-tracker">
+                        <h6><i class="bi bi-list-check me-2"></i>作成進捗</h6>
+                        <div class="progress mb-3">
+                            <div class="progress-bar" :style="`width: ${getProgressPercentage()}%`"></div>
+                        </div>
+                        
+                        <div class="small">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>基本情報</span>
+                                <i class="bi" :class="isBasicInfoComplete() ? 'bi-check-circle text-success' : 'bi-circle'"></i>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>顧客選択</span>
+                                <i class="bi" :class="invoice.customerId ? 'bi-check-circle text-success' : 'bi-circle'"></i>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>明細入力</span>
+                                <i class="bi" :class="invoice.lineItems.length > 0 ? 'bi-check-circle text-success' : 'bi-circle'"></i>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>支払条件</span>
+                                <i class="bi" :class="invoice.paymentMethod ? 'bi-check-circle text-success' : 'bi-circle'"></i>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>最終確認</span>
+                                <i class="bi" :class="isFormValid() ? 'bi-check-circle text-success' : 'bi-circle'"></i>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6><i class="bi bi-info-circle me-2"></i>統計情報</h6>
+                        <div class="small text-muted">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>明細数</span>
+                                <span x-text="invoice.lineItems.length"></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>税抜金額</span>
+                                <span x-text="formatCurrency(calculateSubtotal())"></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>税額</span>
+                                <span x-text="formatCurrency(calculateTaxAmount(8) + calculateTaxAmount(10))"></span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span><strong>合計金額</strong></span>
+                                <span><strong x-text="formatCurrency(calculateTotalAmount())"></strong></span>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6><i class="bi bi-lightbulb me-2"></i>ヒント</h6>
+                        <div class="small text-muted">
+                            <template x-if="activeTab === 'basic'">
+                                <div>
+                                    <p>工数データから自動で明細を生成できます。</p>
+                                    <p>MoneyForward連携済み顧客を選択すると、自動で情報が同期されます。</p>
+                                </div>
+                            </template>
+                            <template x-if="activeTab === 'items'">
+                                <div>
+                                    <p>明細は工数データから自動取込することをお勧めします。</p>
+                                    <p>税率は商品・サービスに応じて適切に設定してください。</p>
+                                </div>
+                            </template>
+                            <template x-if="activeTab === 'payment'">
+                                <div>
+                                    <p>MoneyForward自動同期を有効にすると、会計処理が効率化されます。</p>
+                                    <p>振込先口座は事前に登録しておくと便利です。</p>
+                                </div>
+                            </template>
+                            <template x-if="activeTab === 'preview'">
+                                <div>
+                                    <p>最終確認を行い、問題がなければ発行してください。</p>
+                                    <p>発行後は内容の変更ができませんのでご注意ください。</p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('invoiceEditor', () => ({
+                activeTab: 'basic',
+                selectedCurrency: 'JPY',
+                isEditMode: false,
+                loading: false,
+                isDirty: false,
+                
+                invoice: {
+                    id: null,
+                    invoiceNumber: 'INV-2025-002',
+                    customerId: '',
+                    projectId: '',
+                    contractId: '',
+                    status: 'DRAFT',
+                    issueDate: new Date().toISOString().split('T')[0],
+                    dueDate: '',
+                    billingPeriod: {
+                        year: new Date().getFullYear(),
+                        month: new Date().getMonth() + 1
+                    },
+                    totalAmount: {
+                        amount: 0,
+                        currency: 'JPY'
+                    },
+                    taxAmount: {
+                        amount: 0,
+                        currency: 'JPY'
+                    },
+                    discountAmount: {
+                        amount: 0,
+                        currency: 'JPY'
+                    },
+                    adjustmentAmount: {
+                        amount: 0,
+                        currency: 'JPY'
+                    },
+                    notes: '',
+                    paymentMethod: 'BANK_TRANSFER',
+                    paymentTermsDays: 30,
+                    paymentNotes: '',
+                    bankAccountId: '',
+                    transferFeeBearer: 'customer',
+                    lineItems: [],
+                    taxSettings: {
+                        taxType: 'CONSUMPTION_TAX',
+                        defaultTaxRate: 10,
+                        taxIncluded: false,
+                        withholdingTaxRate: 0
+                    },
+                    moneyForwardSettings: {
+                        syncEnabled: true,
+                        autoCreateInvoice: true,
+                        accountingSubject: 'sales',
+                        taxCategory: 'taxable_10'
+                    },
+                    moneyForwardStatus: 'none'
+                },
+                
+                errors: {},
+                
+                duplicateWarning: {
+                    show: false,
+                    message: ''
+                },
+                
+                customers: [
+                    {
+                        id: '660f9511-f39c-52e5-b827-557766551111',
+                        name: '株式会社ABC商事',
+                        type: '法人',
+                        billingAddress: {
+                            country: 'JP',
+                            postalCode: '105-0001',
+                            prefecture: '東京都',
+                            city: '港区虎ノ門',
+                            addressLine1: '1-2-3 ABCビル5F',
+                            addressLine2: null
+                        },
+                        contact: 'contact@abc-corp.co.jp',
+                        logo: 'https://via.placeholder.com/40',
+                        moneyForwardStatus: 'synced',
+                        creditRating: 'AA',
+                        paymentTermsDays: 30
+                    },
+                    {
+                        id: '880b1733-b5be-74g7-d049-779988773000',
+                        name: 'XYZ製造株式会社',
+                        type: '法人',
+                        billingAddress: {
+                            country: 'JP',
+                            postalCode: '530-0001',
+                            prefecture: '大阪府',
+                            city: '大阪市北区梅田',
+                            addressLine1: '2-4-5 XYZタワー10F',
+                            addressLine2: null
+                        },
+                        contact: 'info@xyz-mfg.co.jp',
+                        logo: 'https://via.placeholder.com/40',
+                        moneyForwardStatus: 'pending',
+                        creditRating: 'A',
+                        paymentTermsDays: 45
+                    }
+                ],
+                
+                projects: [
+                    { 
+                        id: '123e4567-e89b-12d3-a456-426614174000', 
+                        name: 'ECサイトリニューアル', 
+                        customerId: '660f9511-f39c-52e5-b827-557766551111',
+                        status: '進行中' 
+                    },
+                    { 
+                        id: '456e7890-e89b-12d3-a456-426614174001', 
+                        name: '基幹システム更改', 
+                        customerId: '880b1733-b5be-74g7-d049-779988773000',
+                        status: '進行中' 
+                    },
+                    { 
+                        id: '789e0123-e89b-12d3-a456-426614174002', 
+                        name: 'モバイルアプリ開発', 
+                        customerId: 'aa0d3955-d7da-96i9-f26b-99bb00995555',
+                        status: '完了' 
+                    }
+                ],
+                
+                bankAccounts: [
+                    { 
+                        id: 'bb1e4a66-e8eb-07j0-037c-00cc11006666', 
+                        bankName: '三菱UFJ銀行', 
+                        branchName: '虎ノ門支店',
+                        accountType: '普通', 
+                        accountNumber: '1234567',
+                        accountHolderName: 'カ）エスイーエススステムズ',
+                        isDefault: true
+                    },
+                    { 
+                        id: 'cc2f5b77-f0fd-18k1-148d-11dd22117777', 
+                        bankName: 'みずほ銀行', 
+                        branchName: '新橋支店',
+                        accountType: '当座', 
+                        accountNumber: '9876543',
+                        accountHolderName: 'カ）エスイーエススステムズ',
+                        isDefault: false
+                    }
+                ],
+                
+                get selectedCustomer() {
+                    return this.customers.find(c => c.id === this.invoice.customerId);
+                },
+                
+                get selectedProject() {
+                    return this.projects.find(p => p.id === this.invoice.projectId);
+                },
+                
+                init() {
+                    this.addLineItem();
+                    this.updateDueDate();
+                },
+                
+                selectCustomer(customer) {
+                    this.invoice.customerId = customer.id;
+                    this.isDirty = true;
+                    this.validateDuplicates();
+                },
+                
+                onProjectChange() {
+                    this.isDirty = true;
+                    this.validateDuplicates();
+                },
+                
+                addLineItem() {
+                    this.invoice.lineItems.push({
+                        id: crypto.randomUUID(),
+                        description: '',
+                        category: '',
+                        quantity: 1,
+                        unit: 'hours',
+                        unitPrice: {
+                            amount: 0,
+                            currency: 'JPY'
+                        },
+                        lineAmount: {
+                            amount: 0,
+                            currency: 'JPY'
+                        },
+                        taxRate: 10,
+                        taxAmount: {
+                            amount: 0,
+                            currency: 'JPY'
+                        },
+                        totalAmount: {
+                            amount: 0,
+                            currency: 'JPY'
+                        },
+                        note: '',
+                        timesheetEntryIds: [],
+                        isAutoCalculated: false
+                    });
+                    this.isDirty = true;
+                },
+                
+                removeLineItem(index) {
+                    const item = this.invoice.lineItems[index];
+                    item.removing = true;
+                    
+                    setTimeout(() => {
+                        this.invoice.lineItems.splice(index, 1);
+                        this.isDirty = true;
+                    }, 300);
+                },
+                
+                calculateItemTotal(item) {
+                    const quantity = parseFloat(item.quantity) || 0;
+                    const unitPrice = parseFloat(item.unitPrice) || 0;
+                    const taxRate = parseFloat(item.taxRate) || 0;
+                    
+                    item.subtotal = quantity * unitPrice;
+                    item.taxAmount = item.subtotal * (taxRate / 100);
+                    item.total = item.subtotal + item.taxAmount;
+                    
+                    this.isDirty = true;
+                },
+                
+                calculateSubtotal() {
+                    return this.invoice.lineItems.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+                },
+                
+                calculateTaxAmount(rate) {
+                    return this.invoice.lineItems
+                        .filter(item => item.taxRate === rate)
+                        .reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+                },
+                
+                calculateTotalAmount() {
+                    const subtotal = this.calculateSubtotal();
+                    const tax8 = this.calculateTaxAmount(8);
+                    const tax10 = this.calculateTaxAmount(10);
+                    const discount = parseFloat(this.invoice.discountAmount) || 0;
+                    const adjustment = parseFloat(this.invoice.adjustmentAmount) || 0;
+                    
+                    return subtotal + tax8 + tax10 - discount + adjustment;
+                },
+                
+                updateDueDate() {
+                    if (!this.invoice.issueDate || !this.invoice.paymentTerms) return;
+                    
+                    const issueDate = new Date(this.invoice.issueDate);
+                    const terms = this.invoice.paymentTerms;
+                    
+                    if (terms === 'immediate') {
+                        this.invoice.dueDate = this.invoice.issueDate;
+                    } else if (terms.endsWith('days')) {
+                        const days = parseInt(terms.replace('days', ''));
+                        issueDate.setDate(issueDate.getDate() + days);
+                        this.invoice.dueDate = issueDate.toISOString().split('T')[0];
+                    }
+                },
+                
+                loadTimesheetData() {
+                    this.loading = true;
+                    
+                    // シミュレート工数データ取込
+                    setTimeout(() => {
+                        this.invoice.lineItems = [
+                            {
+                                id: Date.now() + 1,
+                                description: 'フロントエンド開発',
+                                category: 'development',
+                                quantity: 160,
+                                unit: 'hours',
+                                unitPrice: 5000,
+                                taxRate: 10,
+                                subtotal: 800000,
+                                taxAmount: 80000,
+                                total: 880000,
+                                note: '5月分実働時間',
+                                isAutoCalculated: true
+                            },
+                            {
+                                id: Date.now() + 2,
+                                description: 'バックエンド開発',
+                                category: 'development',
+                                quantity: 120,
+                                unit: 'hours',
+                                unitPrice: 6000,
+                                taxRate: 10,
+                                subtotal: 720000,
+                                taxAmount: 72000,
+                                total: 792000,
+                                note: '5月分実働時間',
+                                isAutoCalculated: true
+                            }
+                        ];
+                        this.loading = false;
+                        this.isDirty = true;
+                    }, 1000);
+                },
+                
+                validateDuplicates() {
+                    if (this.invoice.customerId && this.invoice.billingPeriodStart && this.invoice.billingPeriodEnd) {
+                        // 重複チェックのシミュレート
+                        const isDuplicate = Math.random() > 0.7;
+                        if (isDuplicate) {
+                            this.duplicateWarning = {
+                                show: true,
+                                message: `同じ顧客・期間の請求書が既に存在する可能性があります。`
+                            };
+                        }
+                    }
+                },
+                
+                dismissDuplicateWarning() {
+                    this.duplicateWarning.show = false;
+                },
+                
+                isBasicInfoComplete() {
+                    return this.invoice.invoiceNumber && this.invoice.customerId && 
+                           this.invoice.projectId && this.invoice.billingPeriodStart && 
+                           this.invoice.billingPeriodEnd;
+                },
+                
+                isFormValid() {
+                    return this.isBasicInfoComplete() && 
+                           this.invoice.lineItems.length > 0 &&
+                           this.invoice.lineItems.every(item => item.description && item.quantity > 0 && item.unitPrice >= 0);
+                },
+                
+                getProgressPercentage() {
+                    let progress = 0;
+                    if (this.isBasicInfoComplete()) progress += 25;
+                    if (this.invoice.customerId) progress += 25;
+                    if (this.invoice.lineItems.length > 0) progress += 25;
+                    if (this.invoice.paymentMethod) progress += 25;
+                    return progress;
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        'DRAFT': '下書き',
+                        'PENDING': '承認待ち',
+                        'APPROVED': '承認済み',
+                        'ISSUED': '発行済み',
+                        'SENT': '送付済み',
+                        'PAID': '入金済み',
+                        'OVERDUE': '期限超過',
+                        'PARTIALLY_PAID': '一部入金',
+                        'CANCELLED': 'キャンセル'
+                    };
+                    return texts[status] || status;
+                },
+                
+                getMoneyForwardClass(status) {
+                    const classes = {
+                        'synced': 'mf-synced',
+                        'pending': 'mf-pending',
+                        'error': 'mf-error',
+                        'none': 'mf-pending'
+                    };
+                    return classes[status] || 'mf-pending';
+                },
+                
+                getMoneyForwardIcon(status) {
+                    const icons = {
+                        'synced': 'bi-cloud-check',
+                        'pending': 'bi-cloud-upload',
+                        'error': 'bi-cloud-slash',
+                        'none': 'bi-cloud'
+                    };
+                    return icons[status] || 'bi-cloud';
+                },
+                
+                getMoneyForwardText(status) {
+                    const texts = {
+                        'synced': 'MF同期済み',
+                        'pending': 'MF同期待ち',
+                        'error': 'MFエラー',
+                        'none': '未同期'
+                    };
+                    return texts[status] || '未同期';
+                },
+                
+                getUnitText(unit) {
+                    const units = {
+                        'hours': '時間',
+                        'days': '日',
+                        'months': '月',
+                        'pieces': '個',
+                        'projects': '件'
+                    };
+                    return units[unit] || unit;
+                },
+                
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: this.selectedCurrency
+                    }).format(amount || 0);
+                },
+                
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                },
+                
+                saveDraft() {
+                    this.loading = true;
+                    setTimeout(() => {
+                        this.loading = false;
+                        this.isDirty = false;
+                        alert('下書きを保存しました。');
+                    }, 500);
+                },
+                
+                sendForApproval() {
+                    if (!this.isFormValid()) return;
+                    console.log('承認依頼送信');
+                    alert('承認依頼を送信しました。');
+                },
+                
+                publishInvoice() {
+                    if (!this.isFormValid()) return;
+                    console.log('請求書発行');
+                    alert('請求書を発行しました。');
+                },
+                
+                previewInvoice() {
+                    this.activeTab = 'preview';
+                },
+                
+                syncWithMoneyForward() {
+                    this.loading = true;
+                    setTimeout(() => {
+                        this.invoice.moneyForwardStatus = 'synced';
+                        this.loading = false;
+                        alert('MoneyForwardとの同期が完了しました。');
+                    }, 1000);
+                },
+                
+                cancelEdit() {
+                    if (this.isDirty && !confirm('変更内容が失われますが、よろしいですか？')) {
+                        return;
+                    }
+                    window.location.href = '/billing/invoices';
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

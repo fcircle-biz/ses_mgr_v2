@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>勤怠入力・タイムシート - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .timesheet-calendar {
+            background: white;
+            border-radius: 0.5rem;
+            border: 1px solid #dee2e6;
+            overflow: hidden;
+        }
+        
+        .calendar-header {
+            background: var(--ses-primary);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+        
+        .calendar-nav {
+            background: var(--ses-light);
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        
+        .calendar-day-header {
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-right: 1px solid #dee2e6;
+            text-align: center;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        
+        .calendar-day-header:last-child {
+            border-right: none;
+        }
+        
+        .calendar-day {
+            min-height: 120px;
+            border-bottom: 1px solid #dee2e6;
+            border-right: 1px solid #dee2e6;
+            position: relative;
+            padding: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .calendar-day:last-child {
+            border-right: none;
+        }
+        
+        .calendar-day:hover {
+            background-color: rgba(13, 110, 253, 0.05);
+        }
+        
+        .calendar-day.other-month {
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+        
+        .calendar-day.today {
+            background-color: rgba(13, 110, 253, 0.1);
+            border: 2px solid var(--ses-primary);
+        }
+        
+        .calendar-day.weekend {
+            background-color: rgba(220, 53, 69, 0.05);
+        }
+        
+        .calendar-day.holiday {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+        }
+        
+        .day-number {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        
+        .work-hours {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.125rem;
+        }
+        
+        .work-hours.normal {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--ses-success);
+        }
+        
+        .work-hours.overtime {
+            background: rgba(255, 193, 7, 0.1);
+            color: var(--ses-warning);
+        }
+        
+        .work-hours.holiday-work {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+        }
+        
+        .work-hours.absent {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--ses-secondary);
+        }
+        
+        .day-status {
+            position: absolute;
+            top: 0.25rem;
+            right: 0.25rem;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-submitted {
+            background: var(--ses-success);
+        }
+        
+        .status-approved {
+            background: var(--ses-primary);
+        }
+        
+        .status-pending {
+            background: var(--ses-warning);
+        }
+        
+        .status-draft {
+            background: var(--ses-secondary);
+        }
+        
+        .timesheet-form {
+            background: white;
+            border-radius: 0.5rem;
+            border: 1px solid #dee2e6;
+            padding: 1.5rem;
+        }
+        
+        .time-input {
+            width: 80px;
+            text-align: center;
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, var(--ses-primary), #0a58ca);
+            color: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .summary-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .validation-error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.25);
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        
+        .quick-actions {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        
+        .floating-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+            margin-bottom: 0.5rem;
+        }
+        
+        .project-badge {
+            font-size: 0.7rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            background: rgba(13, 110, 253, 0.1);
+            color: var(--ses-primary);
+        }
+    </style>
+</head>
+<body x-data="timesheetEntry" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">勤怠管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">勤怠入力</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">勤怠入力・タイムシート</h1>
+                    <p class="text-muted mb-0">
+                        <span x-text="currentUser.name"></span> - <span x-text="currentProject.name"></span>
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="importTemplate()">
+                        <i class="bi bi-upload me-1"></i>テンプレート読込
+                    </button>
+                    <button class="btn btn-outline-primary" @click="exportTimesheet()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-success" @click="submitTimesheet()" :disabled="!canSubmit()">
+                        <i class="bi bi-check-circle me-1"></i>提出
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-9">
+                    <!-- 月選択・ナビゲーション -->
+                    <div class="timesheet-calendar mb-4">
+                        <div class="calendar-nav">
+                            <div class="d-flex align-items-center">
+                                <button class="btn btn-outline-secondary btn-sm me-2" @click="previousMonth()">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <h5 class="mb-0 me-2" x-text="formatYearMonth(currentMonth)"></h5>
+                                <button class="btn btn-outline-secondary btn-sm" @click="nextMonth()">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-primary btn-sm" @click="goToToday()">
+                                    <i class="bi bi-calendar-event me-1"></i>今日
+                                </button>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                        <i class="bi bi-funnel me-1"></i>表示
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" @click="calendarView = 'month'">
+                                            <i class="bi bi-calendar-month me-2"></i>月表示
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" @click="calendarView = 'week'">
+                                            <i class="bi bi-calendar-week me-2"></i>週表示
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" @click="calendarView = 'list'">
+                                            <i class="bi bi-list me-2"></i>リスト表示
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- カレンダーグリッド -->
+                        <div class="calendar-grid" x-show="calendarView === 'month'">
+                            <!-- 曜日ヘッダー -->
+                            <div class="calendar-day-header">日</div>
+                            <div class="calendar-day-header">月</div>
+                            <div class="calendar-day-header">火</div>
+                            <div class="calendar-day-header">水</div>
+                            <div class="calendar-day-header">木</div>
+                            <div class="calendar-day-header">金</div>
+                            <div class="calendar-day-header">土</div>
+                            
+                            <!-- カレンダー日付 -->
+                            <template x-for="day in calendarDays" :key="day.date">
+                                <div class="calendar-day" 
+                                     :class="{
+                                         'other-month': !day.isCurrentMonth,
+                                         'today': day.isToday,
+                                         'weekend': day.isWeekend,
+                                         'holiday': day.isHoliday
+                                     }"
+                                     @click="selectDay(day)">
+                                    <div class="day-number" x-text="day.dayNumber"></div>
+                                    <div class="day-status" :class="getDayStatusClass(day)"></div>
+                                    
+                                    <template x-if="day.workEntry">
+                                        <div>
+                                            <div class="work-hours" :class="getWorkHoursClass(day.workEntry)" x-text="formatWorkHours(day.workEntry)"></div>
+                                            <div class="project-badge" x-text="day.workEntry.projectCode"></div>
+                                        </div>
+                                    </template>
+                                    
+                                    <template x-if="day.isHoliday">
+                                        <div class="small text-danger" x-text="day.holidayName"></div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <!-- 週表示 -->
+                        <div x-show="calendarView === 'week'">
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th width="100">時間</th>
+                                            <template x-for="day in currentWeekDays" :key="day.date">
+                                                <th class="text-center" :class="{ 'bg-light': day.isWeekend }">
+                                                    <div x-text="day.dayName"></div>
+                                                    <div class="small text-muted" x-text="day.dayNumber"></div>
+                                                </th>
+                                            </template>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="hour in workingHours" :key="hour">
+                                            <tr>
+                                                <td class="text-center fw-medium" x-text="`${hour}:00`"></td>
+                                                <template x-for="day in currentWeekDays" :key="day.date">
+                                                    <td class="text-center" :class="{ 'bg-light': day.isWeekend }">
+                                                        <div x-show="hasWorkEntry(day, hour)" class="badge bg-primary">
+                                                            作業中
+                                                        </div>
+                                                    </td>
+                                                </template>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 日次詳細入力フォーム -->
+                    <div class="timesheet-form" x-show="selectedDay">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">
+                                <i class="bi bi-calendar-day me-2"></i>
+                                <span x-text="formatSelectedDate()"></span>の勤怠入力
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary btn-sm" @click="copyPreviousDay()">
+                                    <i class="bi bi-copy me-1"></i>前日コピー
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" @click="copyTemplate()">
+                                    <i class="bi bi-files me-1"></i>テンプレート適用
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <form @submit.prevent="saveDayEntry()">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">出勤時刻</label>
+                                    <input type="time" class="form-control time-input" x-model="dayEntry.startTime" step="300">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">退勤時刻</label>
+                                    <input type="time" class="form-control time-input" x-model="dayEntry.endTime" step="300">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">休憩時間（分）</label>
+                                    <input type="number" class="form-control time-input" x-model="dayEntry.breakMinutes" min="0" step="15">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">実働時間</label>
+                                    <input type="text" class="form-control time-input" :value="calculateWorkHours()" readonly>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3 mt-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">作業内容</label>
+                                    <select class="form-select" x-model="dayEntry.workType">
+                                        <option value="NORMAL">通常勤務</option>
+                                        <option value="OVERTIME">残業</option>
+                                        <option value="HOLIDAY_WORK">休日出勤</option>
+                                        <option value="REMOTE">リモートワーク</option>
+                                        <option value="TRAINING">研修</option>
+                                        <option value="MEETING">会議</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">プロジェクト</label>
+                                    <select class="form-select" x-model="dayEntry.projectId">
+                                        <template x-for="project in availableProjects" :key="project.id">
+                                            <option :value="project.id" x-text="project.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <label class="form-label">作業詳細・備考</label>
+                                <textarea class="form-control" rows="3" x-model="dayEntry.description" 
+                                          placeholder="今日の作業内容や特記事項を入力してください"></textarea>
+                            </div>
+                            
+                            <!-- 休暇・欠勤の場合 -->
+                            <div x-show="dayEntry.workType === 'VACATION' || dayEntry.workType === 'ABSENT'" class="mt-3">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">休暇種別</label>
+                                        <select class="form-select" x-model="dayEntry.leaveType">
+                                            <option value="PAID_LEAVE">有給休暇</option>
+                                            <option value="SICK_LEAVE">病気休暇</option>
+                                            <option value="SPECIAL_LEAVE">特別休暇</option>
+                                            <option value="ABSENT">欠勤</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">休暇時間</label>
+                                        <select class="form-select" x-model="dayEntry.leaveHours">
+                                            <option value="8">全日（8時間）</option>
+                                            <option value="4">半日（4時間）</option>
+                                            <option value="2">2時間</option>
+                                            <option value="1">1時間</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- バリデーションエラー -->
+                            <div x-show="validationErrors.length > 0" class="validation-error">
+                                <div class="fw-medium text-danger mb-2">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>入力内容に問題があります
+                                </div>
+                                <ul class="mb-0 small">
+                                    <template x-for="error in validationErrors" :key="error">
+                                        <li x-text="error"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2 mt-4">
+                                <button type="button" class="btn btn-outline-secondary" @click="clearForm()">
+                                    <i class="bi bi-x me-1"></i>クリア
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check me-1"></i>保存
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- サイドパネル -->
+                <div class="col-lg-3">
+                    <!-- 月次サマリー -->
+                    <div class="summary-card mb-4">
+                        <div class="summary-number" x-text="`${monthlySummary.totalHours}h`"></div>
+                        <div>今月の総労働時間</div>
+                        <div class="mt-2 small">
+                            <div>実働: <span x-text="`${monthlySummary.regularHours}h`"></span></div>
+                            <div>残業: <span x-text="`${monthlySummary.overtimeHours}h`"></span></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 勤務状況 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-calendar-check me-2"></i>今月の勤務状況
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 text-center">
+                                <div class="col-6">
+                                    <div class="h4 text-primary mb-0" x-text="monthlySummary.workDays"></div>
+                                    <div class="small text-muted">出勤日数</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="h4 text-success mb-0" x-text="monthlySummary.submittedDays"></div>
+                                    <div class="small text-muted">提出済み</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="h4 text-warning mb-0" x-text="monthlySummary.vacationDays"></div>
+                                    <div class="small text-muted">有給取得</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="h4 text-danger mb-0" x-text="monthlySummary.remainingDays"></div>
+                                    <div class="small text-muted">未入力</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         :style="`width: ${(monthlySummary.submittedDays / monthlySummary.workDays) * 100}%`"></div>
+                                </div>
+                                <div class="small text-muted text-center mt-1">入力進捗: <span x-text="`${Math.round((monthlySummary.submittedDays / monthlySummary.workDays) * 100)}%`"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 承認状況 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-check-circle me-2"></i>承認状況
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">技術者提出</span>
+                                <span class="badge bg-success">完了</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">PM承認</span>
+                                <span class="badge bg-warning">待機中</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small">顧客承認</span>
+                                <span class="badge bg-secondary">未実施</span>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <div class="small text-muted">提出期限: 2025年6月5日</div>
+                                <div class="small text-muted">承認期限: 2025年6月10日</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- クイックアクション -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-lightning me-2"></i>クイックアクション
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary btn-sm" @click="fillAllWorkdays()">
+                                    <i class="bi bi-calendar-fill me-1"></i>全営業日入力
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" @click="applyTemplate()">
+                                    <i class="bi bi-files me-1"></i>定型パターン適用
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" @click="calculateOvertimeHours()">
+                                    <i class="bi bi-clock me-1"></i>残業時間計算
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" @click="requestLeave()">
+                                    <i class="bi bi-calendar-x me-1"></i>休暇申請
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- クイックアクション（フローティングボタン） -->
+    <div class="quick-actions">
+        <button class="btn btn-success floating-button" @click="quickSave()" title="クイック保存">
+            <i class="bi bi-check"></i>
+        </button>
+        <button class="btn btn-primary floating-button" @click="autoFill()" title="自動入力">
+            <i class="bi bi-magic"></i>
+        </button>
+    </div>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('timesheetEntry', () => ({
+                currentMonth: new Date(),
+                selectedDay: null,
+                calendarView: 'month',
+                validationErrors: [],
+                
+                currentUser: {
+                    id: '550e8400-e29b-41d4-a716-446655440000',
+                    name: '山田太郎'
+                },
+                
+                currentProject: {
+                    id: '123e4567-e89b-12d3-a456-426614174000',
+                    name: 'ECサイトリニューアル',
+                    code: 'EC-001'
+                },
+                
+                availableProjects: [
+                    { id: '123e4567-e89b-12d3-a456-426614174000', name: 'ECサイトリニューアル', code: 'EC-001' },
+                    { id: '456e7890-e89b-12d3-a456-426614174001', name: '基幹システム開発', code: 'SYS-001' },
+                    { id: '789e0123-e89b-12d3-a456-426614174002', name: '研修・教育', code: 'TRN-001' }
+                ],
+                
+                dayEntry: {
+                    date: '',
+                    attendanceType: 'WORK',
+                    specialWorkType: null,
+                    startTime: '09:00',
+                    endTime: '18:00',
+                    breakStartTime: '12:00',
+                    breakEndTime: '13:00',
+                    breakMinutes: 60,
+                    scheduledHours: 8,
+                    actualWorkingHours: 0,
+                    overtimeHours: 0,
+                    workLocation: 'CLIENT_OFFICE',
+                    workLocationDetails: '',
+                    projectId: '123e4567-e89b-12d3-a456-426614174000',
+                    dailyComment: '',
+                    tasks: [],
+                    isWorkingDay: true,
+                    isOvertimeWork: false,
+                    isHolidayWork: false,
+                    validationErrors: []
+                },
+                
+                monthlySummary: {
+                    totalWorkingDays: 22,
+                    totalWorkingHours: 168,
+                    totalOvertimeHours: 8,
+                    totalSpecialWorkHours: 0,
+                    totalAdjustmentHours: 0,
+                    holidayWorkDays: 0,
+                    holidayWorkHours: 0,
+                    nightWorkHours: 0,
+                    paidLeaveDays: 2,
+                    sickLeaveDays: 0,
+                    submittedDays: 18,
+                    remainingDays: 4
+                },
+                
+                workingHours: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+                
+                get calendarDays() {
+                    const year = this.currentMonth.getFullYear();
+                    const month = this.currentMonth.getMonth();
+                    const firstDay = new Date(year, month, 1);
+                    const lastDay = new Date(year, month + 1, 0);
+                    const startDate = new Date(firstDay);
+                    startDate.setDate(startDate.getDate() - firstDay.getDay());
+                    
+                    const days = [];
+                    const current = new Date(startDate);
+                    
+                    for (let i = 0; i < 42; i++) {
+                        const isCurrentMonth = current.getMonth() === month;
+                        const isToday = this.isSameDay(current, new Date());
+                        const isWeekend = current.getDay() === 0 || current.getDay() === 6;
+                        const isHoliday = this.isHoliday(current);
+                        
+                        days.push({
+                            date: new Date(current),
+                            dayNumber: current.getDate(),
+                            isCurrentMonth,
+                            isToday,
+                            isWeekend,
+                            isHoliday,
+                            holidayName: isHoliday ? this.getHolidayName(current) : null,
+                            workEntry: isCurrentMonth ? this.getWorkEntry(current) : null
+                        });
+                        
+                        current.setDate(current.getDate() + 1);
+                    }
+                    
+                    return days;
+                },
+                
+                get currentWeekDays() {
+                    // 現在選択されている週の日付を取得
+                    const days = [];
+                    const startOfWeek = new Date(this.selectedDay || new Date());
+                    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+                    
+                    for (let i = 0; i < 7; i++) {
+                        const date = new Date(startOfWeek);
+                        date.setDate(date.getDate() + i);
+                        days.push({
+                            date,
+                            dayName: date.toLocaleDateString('ja-JP', { weekday: 'short' }),
+                            dayNumber: date.getDate(),
+                            isWeekend: date.getDay() === 0 || date.getDay() === 6
+                        });
+                    }
+                    
+                    return days;
+                },
+                
+                isSameDay(date1, date2) {
+                    return date1.toDateString() === date2.toDateString();
+                },
+                
+                isHoliday(date) {
+                    // 簡単な祝日判定（実際は祝日APIまたはライブラリを使用）
+                    const holidays = [
+                        '2025-01-01', '2025-01-13', '2025-02-11', '2025-02-23',
+                        '2025-03-21', '2025-04-29', '2025-05-03', '2025-05-04', '2025-05-05'
+                    ];
+                    return holidays.includes(date.toISOString().split('T')[0]);
+                },
+                
+                getHolidayName(date) {
+                    const holidays = {
+                        '2025-01-01': '元日',
+                        '2025-01-13': '成人の日',
+                        '2025-02-11': '建国記念日',
+                        '2025-02-23': '天皇誕生日'
+                    };
+                    return holidays[date.toISOString().split('T')[0]] || '祝日';
+                },
+                
+                getWorkEntry(date) {
+                    // 実際のデータベースから取得する代わりのモックデータ
+                    const entries = {
+                        '2025-06-01': { hours: 8, type: 'normal', projectCode: 'EC-001' },
+                        '2025-06-02': { hours: 9, type: 'overtime', projectCode: 'EC-001' },
+                        '2025-06-03': { hours: 8, type: 'normal', projectCode: 'SYS-001' }
+                    };
+                    return entries[date.toISOString().split('T')[0]];
+                },
+                
+                selectDay(day) {
+                    if (!day.isCurrentMonth) return;
+                    
+                    this.selectedDay = day.date;
+                    this.dayEntry.date = day.date.toISOString().split('T')[0];
+                    
+                    // 既存データがあれば読み込み
+                    const existing = this.getWorkEntry(day.date);
+                    if (existing) {
+                        this.loadExistingEntry(existing);
+                    } else {
+                        this.resetDayEntry();
+                    }
+                },
+                
+                loadExistingEntry(entry) {
+                    // 既存エントリーの読み込み（実際はAPIから取得）
+                    this.dayEntry.startTime = '09:00';
+                    this.dayEntry.endTime = entry.hours >= 9 ? '18:00' : '17:00';
+                    this.dayEntry.attendanceType = 'WORK';
+                    this.dayEntry.specialWorkType = entry.type === 'overtime' ? 'OVERTIME' : null;
+                },
+                
+                resetDayEntry() {
+                    this.dayEntry = {
+                        date: this.dayEntry.date,
+                        attendanceType: 'WORK',
+                        specialWorkType: null,
+                        startTime: '09:00',
+                        endTime: '18:00',
+                        breakStartTime: '12:00',
+                        breakEndTime: '13:00',
+                        breakMinutes: 60,
+                        scheduledHours: 8,
+                        actualWorkingHours: 0,
+                        overtimeHours: 0,
+                        workLocation: 'CLIENT_OFFICE',
+                        workLocationDetails: '',
+                        projectId: '123e4567-e89b-12d3-a456-426614174000',
+                        dailyComment: '',
+                        tasks: [],
+                        isWorkingDay: true,
+                        isOvertimeWork: false,
+                        isHolidayWork: false,
+                        validationErrors: []
+                    };
+                },
+                
+                calculateWorkHours() {
+                    if (!this.dayEntry.startTime || !this.dayEntry.endTime) return '0:00';
+                    
+                    const start = new Date(`2000-01-01T${this.dayEntry.startTime}:00`);
+                    const end = new Date(`2000-01-01T${this.dayEntry.endTime}:00`);
+                    
+                    let diff = (end - start) / (1000 * 60); // 分単位
+                    diff -= this.dayEntry.breakMinutes || 0;
+                    
+                    if (diff < 0) return '0:00';
+                    
+                    const hours = Math.floor(diff / 60);
+                    const minutes = diff % 60;
+                    
+                    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+                },
+                
+                validateEntry() {
+                    this.validationErrors = [];
+                    
+                    if (!this.dayEntry.startTime) {
+                        this.validationErrors.push('出勤時刻を入力してください');
+                    }
+                    
+                    if (!this.dayEntry.endTime) {
+                        this.validationErrors.push('退勤時刻を入力してください');
+                    }
+                    
+                    if (this.dayEntry.startTime && this.dayEntry.endTime) {
+                        const start = new Date(`2000-01-01T${this.dayEntry.startTime}:00`);
+                        const end = new Date(`2000-01-01T${this.dayEntry.endTime}:00`);
+                        
+                        if (end <= start) {
+                            this.validationErrors.push('退勤時刻は出勤時刻より後である必要があります');
+                        }
+                    }
+                    
+                    const workHours = this.calculateWorkHours();
+                    const [hours] = workHours.split(':').map(Number);
+                    
+                    if (hours > 12) {
+                        this.validationErrors.push('1日の労働時間が12時間を超えています');
+                    }
+                    
+                    return this.validationErrors.length === 0;
+                },
+                
+                saveDayEntry() {
+                    if (!this.validateEntry()) return;
+                    
+                    console.log('日次勤怠保存:', this.dayEntry);
+                    alert('勤怠データを保存しました');
+                    
+                    // 実際の実装ではAPIコール
+                    this.selectedDay = null;
+                },
+                
+                formatYearMonth(date) {
+                    return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' });
+                },
+                
+                formatSelectedDate() {
+                    if (!this.selectedDay) return '';
+                    return this.selectedDay.toLocaleDateString('ja-JP', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric',
+                        weekday: 'short'
+                    });
+                },
+                
+                formatWorkHours(entry) {
+                    return `${entry.hours}h`;
+                },
+                
+                getWorkHoursClass(entry) {
+                    switch (entry.type) {
+                        case 'overtime': return 'overtime';
+                        case 'holiday': return 'holiday-work';
+                        case 'absent': return 'absent';
+                        default: return 'normal';
+                    }
+                },
+                
+                getDayStatusClass(day) {
+                    if (!day.workEntry) return 'status-draft';
+                    if (day.workEntry.approved) return 'status-approved';
+                    if (day.workEntry.submitted) return 'status-submitted';
+                    return 'status-pending';
+                },
+                
+                hasWorkEntry(day, hour) {
+                    // 指定時間に作業エントリーがあるかチェック
+                    return day.workEntry && hour >= 9 && hour < 18;
+                },
+                
+                previousMonth() {
+                    this.currentMonth = new Date(this.currentMonth.getFullYear(), this.currentMonth.getMonth() - 1, 1);
+                },
+                
+                nextMonth() {
+                    this.currentMonth = new Date(this.currentMonth.getFullYear(), this.currentMonth.getMonth() + 1, 1);
+                },
+                
+                goToToday() {
+                    this.currentMonth = new Date();
+                },
+                
+                canSubmit() {
+                    return this.monthlySummary.remainingDays === 0;
+                },
+                
+                submitTimesheet() {
+                    if (confirm('今月の勤怠を提出しますか？提出後は編集できません。')) {
+                        console.log('勤怠提出');
+                        alert('勤怠を提出しました');
+                    }
+                },
+                
+                clearForm() {
+                    this.resetDayEntry();
+                    this.validationErrors = [];
+                },
+                
+                quickSave() {
+                    if (this.selectedDay && this.validateEntry()) {
+                        this.saveDayEntry();
+                    }
+                },
+                
+                autoFill() {
+                    // 定型パターンで自動入力
+                    this.dayEntry.startTime = '09:00';
+                    this.dayEntry.endTime = '18:00';
+                    this.dayEntry.breakMinutes = 60;
+                    this.dayEntry.workType = 'NORMAL';
+                    this.dayEntry.description = '通常業務';
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

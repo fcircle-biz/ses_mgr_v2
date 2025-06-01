@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知設定・テンプレート管理 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --notification-email: #0ea5e9;
+            --notification-slack: #4a154b;
+            --notification-push: #059669;
+            --notification-sms: #dc2626;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .settings-nav {
+            border-right: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            min-height: calc(100vh - var(--header-height) - 2rem);
+        }
+
+        .settings-nav .nav-link {
+            border-radius: 0;
+            border: none;
+            color: #495057;
+            padding: 1rem 1.5rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .settings-nav .nav-link.active {
+            background-color: var(--ses-primary);
+            color: white;
+        }
+
+        .settings-nav .nav-link:hover:not(.active) {
+            background-color: #e9ecef;
+        }
+
+        .settings-content {
+            background-color: white;
+            min-height: calc(100vh - var(--header-height) - 2rem);
+        }
+
+        .template-card {
+            border: 1px solid #e9ecef;
+            border-radius: 0.5rem;
+            transition: all 0.15s ease-in-out;
+            cursor: pointer;
+        }
+
+        .template-card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .template-card.active {
+            border-color: var(--ses-primary);
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+
+        .template-type-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+
+        .template-type-email { background-color: var(--notification-email); color: white; }
+        .template-type-slack { background-color: var(--notification-slack); color: white; }
+        .template-type-push { background-color: var(--notification-push); color: white; }
+        .template-type-sms { background-color: var(--notification-sms); color: white; }
+
+        .variable-input {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+
+        .variable-tag {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-family: 'Courier New', monospace;
+            margin: 0.125rem;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .delivery-config-card {
+            border: 2px solid #e9ecef;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .delivery-config-card.email {
+            border-color: var(--notification-email);
+            background-color: rgba(14, 165, 233, 0.05);
+        }
+
+        .delivery-config-card.slack {
+            border-color: var(--notification-slack);
+            background-color: rgba(74, 21, 75, 0.05);
+        }
+
+        .delivery-config-card.push {
+            border-color: var(--notification-push);
+            background-color: rgba(5, 150, 105, 0.05);
+        }
+
+        .delivery-config-card.sms {
+            border-color: var(--notification-sms);
+            background-color: rgba(220, 38, 38, 0.05);
+        }
+
+        .connection-status {
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .connection-status.connected {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .connection-status.disconnected {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .rule-item {
+            border: 1px solid #e9ecef;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: #f8f9fa;
+        }
+
+        .rule-item.active {
+            border-color: var(--ses-success);
+            background-color: #f0fdf4;
+        }
+
+        .rule-item.inactive {
+            border-color: #d1d5db;
+            background-color: #f9fafb;
+            opacity: 0.7;
+        }
+
+        .preview-area {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            min-height: 200px;
+            white-space: pre-wrap;
+        }
+
+        .form-switch .form-check-input {
+            width: 3rem;
+            height: 1.5rem;
+        }
+
+        .code-editor {
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            min-height: 300px;
+        }
+
+        .stats-badge {
+            background-color: var(--ses-light);
+            color: var(--ses-secondary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#" style="color: var(--ses-primary);">
+                <i class="bi bi-layers me-2"></i>SES業務システム
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="me-3">管理者: 田中太郎</span>
+                <button class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-box-arrow-right"></i> ログアウト
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <nav class="nav flex-column p-3">
+            <a class="nav-link text-white mb-2" href="#"><i class="bi bi-speedometer2 me-2"></i>ダッシュボード</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-folder me-2"></i>案件管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-people me-2"></i>技術者管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-search-heart me-2"></i>マッチング</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-file-earmark-text me-2"></i>契約管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-clock me-2"></i>勤怠・工数</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-receipt me-2"></i>請求・支払</a>
+            <a class="nav-link text-white bg-primary rounded mb-2" href="#"><i class="bi bi-bell me-2"></i>通知管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-graph-up me-2"></i>レポート</a>
+        </nav>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="container-fluid p-4" x-data="notificationSettings()">
+            <!-- ページヘッダー -->
+            <div class="row mb-4">
+                <div class="col">
+                    <h2 class="mb-1">
+                        <i class="bi bi-gear me-2"></i>通知設定・テンプレート管理
+                    </h2>
+                    <p class="text-muted mb-0">通知システムの設定とテンプレートを管理します</p>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" @click="saveAllSettings()">
+                        <i class="bi bi-check-circle me-1"></i>設定を保存
+                    </button>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- 設定ナビゲーション -->
+                <div class="col-md-3">
+                    <div class="settings-nav">
+                        <div class="nav flex-column nav-pills">
+                            <button class="nav-link" 
+                                    :class="{ 'active': activeTab === 'templates' }"
+                                    @click="activeTab = 'templates'">
+                                <i class="bi bi-file-earmark-text me-2"></i>テンプレート管理
+                            </button>
+                            <button class="nav-link"
+                                    :class="{ 'active': activeTab === 'delivery' }"
+                                    @click="activeTab = 'delivery'">
+                                <i class="bi bi-send me-2"></i>配信設定
+                            </button>
+                            <button class="nav-link"
+                                    :class="{ 'active': activeTab === 'rules' }"
+                                    @click="activeTab = 'rules'">
+                                <i class="bi bi-diagram-3 me-2"></i>通知ルール
+                            </button>
+                            <button class="nav-link"
+                                    :class="{ 'active': activeTab === 'preferences' }"
+                                    @click="activeTab = 'preferences'">
+                                <i class="bi bi-person-gear me-2"></i>ユーザー設定
+                            </button>
+                            <button class="nav-link"
+                                    :class="{ 'active': activeTab === 'system' }"
+                                    @click="activeTab = 'system'">
+                                <i class="bi bi-gear-wide-connected me-2"></i>システム設定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 設定コンテンツ -->
+                <div class="col-md-9">
+                    <div class="settings-content p-4">
+                        
+                        <!-- テンプレート管理タブ -->
+                        <div x-show="activeTab === 'templates'">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h4>通知テンプレート管理</h4>
+                                <button class="btn btn-success" @click="createNewTemplate()">
+                                    <i class="bi bi-plus-circle me-1"></i>新規テンプレート
+                                </button>
+                            </div>
+
+                            <div class="row">
+                                <!-- テンプレート一覧 -->
+                                <div class="col-md-4">
+                                    <h6 class="mb-3">テンプレート一覧</h6>
+                                    <template x-for="template in templates" :key="template.id">
+                                        <div class="template-card p-3 mb-3"
+                                             :class="{ 'active': selectedTemplate?.id === template.id }"
+                                             @click="selectTemplate(template)">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="mb-1" x-text="template.name"></h6>
+                                                <span class="template-type-badge" 
+                                                      :class="'template-type-' + template.type.toLowerCase()"
+                                                      x-text="template.type">
+                                                </span>
+                                            </div>
+                                            <p class="text-muted mb-2 small" x-text="template.description"></p>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    v<span x-text="template.version"></span>
+                                                </small>
+                                                <div>
+                                                    <span class="stats-badge me-1">
+                                                        <span x-text="template.usageCount"></span>回使用
+                                                    </span>
+                                                    <template x-if="template.isActive">
+                                                        <span class="badge bg-success">有効</span>
+                                                    </template>
+                                                    <template x-if="!template.isActive">
+                                                        <span class="badge bg-secondary">無効</span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- テンプレート編集 -->
+                                <div class="col-md-8">
+                                    <template x-if="selectedTemplate">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <h6>テンプレート編集</h6>
+                                                <div class="btn-group">
+                                                    <button class="btn btn-outline-primary btn-sm" @click="previewTemplate()">
+                                                        <i class="bi bi-eye me-1"></i>プレビュー
+                                                    </button>
+                                                    <button class="btn btn-outline-success btn-sm" @click="saveTemplate()">
+                                                        <i class="bi bi-check me-1"></i>保存
+                                                    </button>
+                                                    <button class="btn btn-outline-danger btn-sm" @click="deleteTemplate()">
+                                                        <i class="bi bi-trash me-1"></i>削除
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <form>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">テンプレート名</label>
+                                                        <input type="text" class="form-control" x-model="selectedTemplate.name">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">通知タイプ</label>
+                                                        <select class="form-select" x-model="selectedTemplate.type">
+                                                            <option value="EMAIL">Email</option>
+                                                            <option value="SLACK">Slack</option>
+                                                            <option value="PUSH">Push通知</option>
+                                                            <option value="SMS">SMS</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label class="form-label">説明</label>
+                                                        <input type="text" class="form-control" x-model="selectedTemplate.description">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">カテゴリ</label>
+                                                        <select class="form-select" x-model="selectedTemplate.category">
+                                                            <option value="project">プロジェクト</option>
+                                                            <option value="engineer">技術者</option>
+                                                            <option value="contract">契約</option>
+                                                            <option value="timesheet">勤怠</option>
+                                                            <option value="billing">請求</option>
+                                                            <option value="system">システム</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input" type="checkbox" x-model="selectedTemplate.isActive">
+                                                            <label class="form-check-label">有効</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <template x-if="selectedTemplate.type === 'EMAIL'">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">件名</label>
+                                                        <input type="text" class="form-control" x-model="selectedTemplate.subject">
+                                                    </div>
+                                                </template>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">本文テンプレート</label>
+                                                    <div class="mb-2">
+                                                        <small class="text-muted">
+                                                            使用可能な変数: 
+                                                            <template x-for="variable in availableVariables" :key="variable">
+                                                                <span class="variable-tag" @click="insertVariable(variable)">
+                                                                    {{<span x-text="variable"></span>}}
+                                                                </span>
+                                                            </template>
+                                                        </small>
+                                                    </div>
+                                                    <textarea class="form-control" rows="10" x-model="selectedTemplate.bodyTemplate"></textarea>
+                                                </div>
+
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6>プレビュー</h6>
+                                                        <div class="preview-area" x-text="getTemplatePreview()"></div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <h6>変数設定</h6>
+                                                        <template x-for="variable in selectedTemplate.variables" :key="variable.name">
+                                                            <div class="mb-2">
+                                                                <div class="input-group input-group-sm">
+                                                                    <span class="input-group-text" x-text="variable.name"></span>
+                                                                    <input type="text" class="form-control variable-input" 
+                                                                           :placeholder="variable.type"
+                                                                           x-model="previewValues[variable.name]">
+                                                                    <button class="btn btn-outline-danger" @click="removeVariable(variable.name)">
+                                                                        <i class="bi bi-x"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                        <button class="btn btn-outline-primary btn-sm" @click="addVariable()">
+                                                            <i class="bi bi-plus"></i> 変数追加
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </template>
+                                    <template x-if="!selectedTemplate">
+                                        <div class="text-center text-muted py-5">
+                                            <i class="bi bi-file-earmark-text fs-1 mb-3"></i>
+                                            <p>テンプレートを選択してください</p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 配信設定タブ -->
+                        <div x-show="activeTab === 'delivery'">
+                            <h4 class="mb-4">配信設定</h4>
+
+                            <!-- Email設定 -->
+                            <div class="delivery-config-card email">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-envelope me-2"></i>Email配信設定
+                                    </h5>
+                                    <span class="connection-status connected">
+                                        <i class="bi bi-check-circle me-1"></i>接続中
+                                    </span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">SMTPサーバー</label>
+                                        <input type="text" class="form-control" value="smtp.example.com">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">ポート</label>
+                                        <input type="number" class="form-control" value="587">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">ユーザー名</label>
+                                        <input type="text" class="form-control" value="notifications@example.com">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">パスワード</label>
+                                        <input type="password" class="form-control" value="••••••••">
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" checked>
+                                            <label class="form-check-label">TLS/SSL暗号化を使用</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-outline-primary btn-sm me-2">接続テスト</button>
+                                    <button class="btn btn-outline-secondary btn-sm">設定をリセット</button>
+                                </div>
+                            </div>
+
+                            <!-- Slack設定 -->
+                            <div class="delivery-config-card slack">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-slack me-2"></i>Slack配信設定
+                                    </h5>
+                                    <span class="connection-status connected">
+                                        <i class="bi bi-check-circle me-1"></i>接続中
+                                    </span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Webhook URL</label>
+                                        <input type="url" class="form-control" value="https://hooks.slack.com/services/...">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">デフォルトチャンネル</label>
+                                        <input type="text" class="form-control" value="#general" placeholder="#channel">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">ボット名</label>
+                                        <input type="text" class="form-control" value="SES Bot">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-outline-primary btn-sm me-2">接続テスト</button>
+                                    <button class="btn btn-outline-secondary btn-sm">設定をリセット</button>
+                                </div>
+                            </div>
+
+                            <!-- Push通知設定 -->
+                            <div class="delivery-config-card push">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-phone me-2"></i>Push通知設定
+                                    </h5>
+                                    <span class="connection-status disconnected">
+                                        <i class="bi bi-x-circle me-1"></i>未設定
+                                    </span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Firebase Server Key</label>
+                                        <input type="password" class="form-control" placeholder="Firebase Server Keyを入力">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Firebase Sender ID</label>
+                                        <input type="text" class="form-control" placeholder="Sender IDを入力">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-outline-primary btn-sm me-2">接続テスト</button>
+                                    <button class="btn btn-outline-secondary btn-sm">設定をリセット</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 通知ルールタブ -->
+                        <div x-show="activeTab === 'rules'">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h4>通知ルール</h4>
+                                <button class="btn btn-success" @click="createNewRule()">
+                                    <i class="bi bi-plus-circle me-1"></i>新規ルール
+                                </button>
+                            </div>
+
+                            <template x-for="rule in notificationRules" :key="rule.id">
+                                <div class="rule-item" :class="{ 'active': rule.isActive, 'inactive': !rule.isActive }">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <h6 x-text="rule.name"></h6>
+                                            <p class="text-muted mb-0" x-text="rule.description"></p>
+                                        </div>
+                                        <div class="d-flex align-items-center">
+                                            <div class="form-check form-switch me-3">
+                                                <input class="form-check-input" type="checkbox" x-model="rule.isActive">
+                                            </div>
+                                            <button class="btn btn-outline-primary btn-sm me-2" @click="editRule(rule)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm" @click="deleteRule(rule)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <small class="text-muted">トリガー</small>
+                                            <div x-text="rule.trigger"></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted">条件</small>
+                                            <div x-text="rule.condition"></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted">アクション</small>
+                                            <div x-text="rule.action"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- ユーザー設定タブ -->
+                        <div x-show="activeTab === 'preferences'">
+                            <h4 class="mb-4">ユーザー通知設定</h4>
+                            
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">通知種別設定</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6>プロジェクト関連</h6>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked>
+                                                <label class="form-check-label">プロジェクト開始</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked>
+                                                <label class="form-check-label">プロジェクト完了</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox">
+                                                <label class="form-check-label">ステータス変更</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>契約関連</h6>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked>
+                                                <label class="form-check-label">契約締結</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked>
+                                                <label class="form-check-label">契約更新</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox">
+                                                <label class="form-check-label">契約終了</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- システム設定タブ -->
+                        <div x-show="activeTab === 'system'">
+                            <h4 class="mb-4">システム設定</h4>
+                            
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">配信制限</h6>
+                                            <div class="mb-3">
+                                                <label class="form-label">1時間あたりの最大送信数</label>
+                                                <input type="number" class="form-control" value="1000">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">再試行回数</label>
+                                                <input type="number" class="form-control" value="3">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">再試行間隔（分）</label>
+                                                <input type="number" class="form-control" value="5">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">ログ設定</h6>
+                                            <div class="mb-3">
+                                                <label class="form-label">ログレベル</label>
+                                                <select class="form-select">
+                                                    <option value="DEBUG">DEBUG</option>
+                                                    <option value="INFO" selected>INFO</option>
+                                                    <option value="WARN">WARN</option>
+                                                    <option value="ERROR">ERROR</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">ログ保持期間（日）</label>
+                                                <input type="number" class="form-control" value="30">
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked>
+                                                <label class="form-check-label">詳細ログ出力</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Alpine.js -->
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+
+    <script>
+        function notificationSettings() {
+            return {
+                activeTab: 'templates',
+                selectedTemplate: null,
+                previewValues: {},
+                
+                templates: [
+                    {
+                        id: 1,
+                        name: 'プロジェクト参加通知',
+                        type: 'EMAIL',
+                        category: 'project',
+                        description: '技術者のプロジェクト参加時に送信',
+                        version: 2,
+                        isActive: true,
+                        usageCount: 127,
+                        subject: 'プロジェクト参加のお知らせ - {{projectName}}',
+                        bodyTemplate: `{{userName}} 様
+
+お疲れ様です。
+
+新しいプロジェクト「{{projectName}}」に参加することが決定しましたのでお知らせいたします。
+
+■ プロジェクト詳細
+・開始日: {{startDate}}
+・終了予定日: {{endDate}}
+・担当ロール: {{role}}
+
+よろしくお願いいたします。`,
+                        variables: [
+                            { name: 'userName', type: 'string', required: true },
+                            { name: 'projectName', type: 'string', required: true },
+                            { name: 'startDate', type: 'date', required: true },
+                            { name: 'endDate', type: 'date', required: false },
+                            { name: 'role', type: 'string', required: true }
+                        ]
+                    },
+                    {
+                        id: 2,
+                        name: 'システムメンテナンス通知',
+                        type: 'SLACK',
+                        category: 'system',
+                        description: 'メンテナンス情報をチームに通知',
+                        version: 1,
+                        isActive: true,
+                        usageCount: 45,
+                        subject: null,
+                        bodyTemplate: `🔧 システムメンテナンス通知
+
+メンテナンス日時: {{maintenanceDate}}
+予定時間: {{duration}}
+対象システム: {{targetSystem}}
+
+詳細: {{details}}`,
+                        variables: [
+                            { name: 'maintenanceDate', type: 'datetime', required: true },
+                            { name: 'duration', type: 'string', required: true },
+                            { name: 'targetSystem', type: 'string', required: true },
+                            { name: 'details', type: 'string', required: false }
+                        ]
+                    }
+                ],
+
+                notificationRules: [
+                    {
+                        id: 1,
+                        name: 'プロジェクト開始自動通知',
+                        description: 'プロジェクトステータスが開始に変更された時に関係者に通知',
+                        trigger: 'プロジェクトステータス変更',
+                        condition: 'ステータス = 開始',
+                        action: 'プロジェクト参加通知テンプレートで送信',
+                        isActive: true
+                    },
+                    {
+                        id: 2,
+                        name: '契約期限アラート',
+                        description: '契約終了30日前に担当者に通知',
+                        trigger: 'スケジュール',
+                        condition: '契約終了日-30日',
+                        action: '契約更新リマインダー送信',
+                        isActive: true
+                    },
+                    {
+                        id: 3,
+                        name: '勤怠未承認アラート',
+                        description: '月末未承認の勤怠がある場合にマネージャーに通知',
+                        trigger: 'スケジュール',
+                        condition: '月末 & 未承認勤怠あり',
+                        action: '勤怠承認依頼通知送信',
+                        isActive: false
+                    }
+                ],
+
+                availableVariables: ['userName', 'projectName', 'startDate', 'endDate', 'role', 'companyName'],
+
+                selectTemplate(template) {
+                    this.selectedTemplate = { ...template };
+                    this.previewValues = {};
+                    // 変数のデフォルト値を設定
+                    template.variables.forEach(variable => {
+                        this.previewValues[variable.name] = this.getDefaultValue(variable.type);
+                    });
+                },
+
+                getDefaultValue(type) {
+                    switch (type) {
+                        case 'string': return 'サンプルテキスト';
+                        case 'date': return '2024-01-20';
+                        case 'datetime': return '2024-01-20 10:00';
+                        default: return 'サンプル値';
+                    }
+                },
+
+                getTemplatePreview() {
+                    if (!this.selectedTemplate) return '';
+                    
+                    let preview = this.selectedTemplate.bodyTemplate;
+                    Object.entries(this.previewValues).forEach(([key, value]) => {
+                        const regex = new RegExp(`{{${key}}}`, 'g');
+                        preview = preview.replace(regex, value);
+                    });
+                    return preview;
+                },
+
+                insertVariable(variable) {
+                    // テキストエリアに変数を挿入する処理
+                    alert(`変数 {{${variable}}} をテンプレートに挿入します`);
+                },
+
+                addVariable() {
+                    const name = prompt('変数名を入力してください:');
+                    if (name && this.selectedTemplate) {
+                        this.selectedTemplate.variables.push({
+                            name: name,
+                            type: 'string',
+                            required: false
+                        });
+                        this.previewValues[name] = 'サンプル値';
+                    }
+                },
+
+                removeVariable(variableName) {
+                    if (this.selectedTemplate) {
+                        this.selectedTemplate.variables = this.selectedTemplate.variables.filter(
+                            v => v.name !== variableName
+                        );
+                        delete this.previewValues[variableName];
+                    }
+                },
+
+                createNewTemplate() {
+                    const newTemplate = {
+                        id: Date.now(),
+                        name: '新規テンプレート',
+                        type: 'EMAIL',
+                        category: 'system',
+                        description: '',
+                        version: 1,
+                        isActive: false,
+                        usageCount: 0,
+                        subject: '',
+                        bodyTemplate: '',
+                        variables: []
+                    };
+                    this.templates.push(newTemplate);
+                    this.selectTemplate(newTemplate);
+                },
+
+                saveTemplate() {
+                    alert('テンプレートを保存しました');
+                },
+
+                deleteTemplate() {
+                    if (confirm('このテンプレートを削除しますか？')) {
+                        this.templates = this.templates.filter(t => t.id !== this.selectedTemplate.id);
+                        this.selectedTemplate = null;
+                    }
+                },
+
+                previewTemplate() {
+                    alert('プレビュー機能（実装予定）');
+                },
+
+                createNewRule() {
+                    alert('新規ルール作成機能（実装予定）');
+                },
+
+                editRule(rule) {
+                    alert(`ルール "${rule.name}" を編集（実装予定）`);
+                },
+
+                deleteRule(rule) {
+                    if (confirm('このルールを削除しますか？')) {
+                        this.notificationRules = this.notificationRules.filter(r => r.id !== rule.id);
+                    }
+                },
+
+                saveAllSettings() {
+                    alert('設定を保存しました');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

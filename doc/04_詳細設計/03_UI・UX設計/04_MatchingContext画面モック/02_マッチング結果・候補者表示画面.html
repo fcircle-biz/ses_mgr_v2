@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マッチング結果・候補者表示 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .candidate-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .candidate-card:hover {
+            box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .candidate-card.selected {
+            border-color: var(--ses-primary);
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+        
+        .match-score-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #198754 100%);
+            transition: width 0.5s ease;
+        }
+        
+        .match-score {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .score-excellent {
+            color: var(--ses-success);
+        }
+        
+        .score-good {
+            color: var(--ses-warning);
+        }
+        
+        .score-fair {
+            color: var(--ses-danger);
+        }
+        
+        .skill-match {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            margin: 0.125rem;
+        }
+        
+        .skill-perfect {
+            background: #d1edff;
+            color: #0969da;
+            border: 1px solid #54aeff;
+        }
+        
+        .skill-partial {
+            background: #fff8dc;
+            color: #8f6b00;
+            border: 1px solid #ddb84e;
+        }
+        
+        .skill-missing {
+            background: #ffebe9;
+            color: #d1242f;
+            border: 1px solid #fd8c73;
+        }
+        
+        .availability-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .available {
+            background: var(--ses-success);
+        }
+        
+        .busy {
+            background: var(--ses-warning);
+        }
+        
+        .unavailable {
+            background: var(--ses-danger);
+        }
+        
+        .filter-chip {
+            background: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 1rem;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .filter-chip:hover {
+            background: var(--ses-primary);
+            color: white;
+            border-color: var(--ses-primary);
+        }
+        
+        .filter-chip.active {
+            background: var(--ses-primary);
+            color: white;
+            border-color: var(--ses-primary);
+        }
+        
+        .project-summary {
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            color: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+        }
+        
+        .matching-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 0.375rem;
+            border: 1px solid #dee2e6;
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--ses-primary);
+        }
+        
+        .radar-chart {
+            width: 100%;
+            height: 200px;
+            background: #f8f9fa;
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body x-data="matchingResults" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">マッチング</a></li>
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">検索・条件設定</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">マッチング結果</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">マッチング結果・候補者表示</h1>
+                    <p class="text-muted mb-0">
+                        <span x-text="project.name"></span> - <span x-text="candidates.length"></span>名の候補者が見つかりました
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportResults()">
+                        <i class="bi bi-download me-1"></i>結果エクスポート
+                    </button>
+                    <button class="btn btn-outline-primary" @click="refineSearch()">
+                        <i class="bi bi-arrow-left me-1"></i>検索条件変更
+                    </button>
+                    <button class="btn btn-primary" @click="proceedToEvaluation()" :disabled="selectedCandidates.length === 0">
+                        <i class="bi bi-arrow-right me-1"></i>評価・判定へ
+                        <span class="badge bg-light text-dark ms-1" x-show="selectedCandidates.length > 0" x-text="selectedCandidates.length"></span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-9">
+                    <!-- 案件サマリー -->
+                    <div class="project-summary mb-4">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h5 class="mb-2" x-text="project.name"></h5>
+                                <div class="row g-3">
+                                    <div class="col-auto">
+                                        <strong>顧客:</strong> <span x-text="project.customer"></span>
+                                    </div>
+                                    <div class="col-auto">
+                                        <strong>期間:</strong> <span x-text="`${project.startDate} 〜 ${project.endDate}`"></span>
+                                    </div>
+                                    <div class="col-auto">
+                                        <strong>予算:</strong> <span x-text="formatCurrency(project.budget)"></span>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <strong>必要スキル:</strong>
+                                    <template x-for="skill in project.requiredSkills" :key="skill">
+                                        <span class="badge bg-light text-dark me-1" x-text="skill"></span>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-end">
+                                    <div class="fs-4 fw-bold" x-text="`${candidates.length}名`"></div>
+                                    <div>候補者発見</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- マッチング統計 -->
+                    <div class="matching-stats mb-4">
+                        <div class="stat-item">
+                            <div class="stat-number" x-text="getHighScoreCandidates().length"></div>
+                            <div class="small text-muted">高適合度<br>(80%以上)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number" x-text="getMediumScoreCandidates().length"></div>
+                            <div class="small text-muted">中適合度<br>(60-79%)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number" x-text="getLowScoreCandidates().length"></div>
+                            <div class="small text-muted">低適合度<br>(60%未満)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number" x-text="getAvailableCandidates().length"></div>
+                            <div class="small text-muted">即座に<br>稼働可能</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number" x-text="Math.round(getAverageScore())"></div>
+                            <div class="small text-muted">平均<br>マッチング度</div>
+                        </div>
+                    </div>
+                    
+                    <!-- フィルター・ソート -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row g-3 align-items-center">
+                                <div class="col-md-6">
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span class="small text-muted me-2">フィルター:</span>
+                                        <span class="filter-chip" :class="{ 'active': filters.availability === 'available' }" 
+                                              @click="toggleFilter('availability', 'available')">
+                                            <i class="bi bi-check-circle me-1"></i>稼働可能
+                                        </span>
+                                        <span class="filter-chip" :class="{ 'active': filters.score === 'high' }" 
+                                              @click="toggleFilter('score', 'high')">
+                                            <i class="bi bi-star me-1"></i>高適合度
+                                        </span>
+                                        <span class="filter-chip" :class="{ 'active': filters.experience === 'senior' }" 
+                                              @click="toggleFilter('experience', 'senior')">
+                                            <i class="bi bi-award me-1"></i>シニア
+                                        </span>
+                                        <span class="filter-chip" :class="{ 'active': filters.remote === 'yes' }" 
+                                              @click="toggleFilter('remote', 'yes')">
+                                            <i class="bi bi-house me-1"></i>リモート可
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center justify-content-end">
+                                        <label class="form-label me-2 mb-0">並び順:</label>
+                                        <select class="form-select w-auto" x-model="sortBy" @change="applySorting()">
+                                            <option value="score">マッチング度</option>
+                                            <option value="availability">稼働可能度</option>
+                                            <option value="experience">経験年数</option>
+                                            <option value="rating">評価</option>
+                                            <option value="cost">コスト</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 候補者一覧 -->
+                    <div class="row g-4">
+                        <template x-for="candidate in filteredCandidates" :key="candidate.id">
+                            <div class="col-lg-6">
+                                <div class="candidate-card" 
+                                     :class="{ 'selected': selectedCandidates.includes(candidate.id) }"
+                                     @click="toggleCandidateSelection(candidate.id)">
+                                    <div class="match-score-bar" :style="`width: ${candidate.matchingScore}%`"></div>
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-start justify-content-between mb-3">
+                                            <div class="d-flex align-items-center">
+                                                <img :src="candidate.avatar" class="rounded-circle me-3" width="48" height="48">
+                                                <div>
+                                                    <h6 class="mb-1" x-text="candidate.name"></h6>
+                                                    <div class="text-muted small" x-text="candidate.title"></div>
+                                                    <div class="small">
+                                                        <span class="availability-indicator" :class="candidate.availability"></span>
+                                                        <span x-text="getAvailabilityText(candidate.availability)"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="text-end">
+                                                <div class="match-score" :class="getScoreClass(candidate.matchingScore)" x-text="`${candidate.matchingScore}%`"></div>
+                                                <div class="small text-muted">マッチング度</div>
+                                                <input type="checkbox" class="form-check-input mt-2" 
+                                                       :checked="selectedCandidates.includes(candidate.id)"
+                                                       @click.stop="toggleCandidateSelection(candidate.id)">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <div class="small text-muted mb-1">スキルマッチング:</div>
+                                            <div>
+                                                <template x-for="skill in candidate.skillMatches" :key="skill.name">
+                                                    <span class="skill-match" :class="getSkillMatchClass(skill.level)"
+                                                          :title="`${skill.name}: ${skill.level} (${skill.experience}年)`">
+                                                        <span x-text="skill.name"></span>
+                                                        <template x-if="skill.level === 'perfect'">
+                                                            <i class="bi bi-check-circle-fill ms-1"></i>
+                                                        </template>
+                                                        <template x-if="skill.level === 'partial'">
+                                                            <i class="bi bi-dash-circle-fill ms-1"></i>
+                                                        </template>
+                                                        <template x-if="skill.level === 'missing'">
+                                                            <i class="bi bi-x-circle-fill ms-1"></i>
+                                                        </template>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row g-2 small">
+                                            <div class="col-6">
+                                                <strong>経験:</strong> <span x-text="`${candidate.totalExperience}年`"></span>
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>評価:</strong> 
+                                                <span x-text="candidate.rating"></span>
+                                                <i class="bi bi-star-fill text-warning ms-1"></i>
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>単価:</strong> <span x-text="`¥${candidate.hourlyRate.toLocaleString()}/時`"></span>
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>稼働率:</strong> <span x-text="`${candidate.currentWorkload}%`"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-3">
+                                            <div class="d-flex justify-content-between small text-muted">
+                                                <span>稼働開始可能日:</span>
+                                                <span x-text="formatDate(candidate.availableFrom)"></span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small text-muted">
+                                                <span>最終案件:</span>
+                                                <span x-text="candidate.lastProject"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-3 d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm flex-fill" @click.stop="viewProfile(candidate.id)">
+                                                <i class="bi bi-person me-1"></i>詳細
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm flex-fill" @click.stop="contactCandidate(candidate.id)">
+                                                <i class="bi bi-envelope me-1"></i>連絡
+                                            </button>
+                                            <button class="btn btn-primary btn-sm flex-fill" @click.stop="startEvaluation(candidate.id)">
+                                                <i class="bi bi-clipboard-check me-1"></i>評価
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- ページネーション -->
+                    <nav class="mt-4" aria-label="候補者ページネーション">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                <button class="page-link" @click="goToPage(currentPage - 1)">前へ</button>
+                            </li>
+                            <template x-for="page in visiblePages" :key="page">
+                                <li class="page-item" :class="{ active: page === currentPage }">
+                                    <button class="page-link" @click="goToPage(page)" x-text="page"></button>
+                                </li>
+                            </template>
+                            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                                <button class="page-link" @click="goToPage(currentPage + 1)">次へ</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                
+                <!-- サイドパネル -->
+                <div class="col-lg-3">
+                    <!-- 選択中の候補者 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-check-square me-2"></i>選択中の候補者
+                                <span class="badge bg-primary ms-2" x-text="selectedCandidates.length"></span>
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <template x-if="selectedCandidates.length === 0">
+                                <p class="text-muted small mb-0">候補者を選択してください</p>
+                            </template>
+                            <template x-if="selectedCandidates.length > 0">
+                                <div>
+                                    <template x-for="candidateId in selectedCandidates" :key="candidateId">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div class="d-flex align-items-center">
+                                                <img :src="getCandidateById(candidateId).avatar" class="rounded-circle me-2" width="24" height="24">
+                                                <span class="small" x-text="getCandidateById(candidateId).name"></span>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-danger" @click="toggleCandidateSelection(candidateId)">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <hr>
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-primary btn-sm" @click="proceedToEvaluation()">
+                                            <i class="bi bi-arrow-right me-1"></i>まとめて評価
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" @click="clearSelection()">
+                                            <i class="bi bi-x-circle me-1"></i>選択解除
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- マッチング条件 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-funnel me-2"></i>適用中の条件
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="small">
+                                <div class="mb-2">
+                                    <strong>必須スキル:</strong>
+                                    <div class="mt-1">
+                                        <template x-for="skill in project.requiredSkills" :key="skill">
+                                            <span class="badge bg-secondary me-1" x-text="skill"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>最小経験年数:</strong> <span x-text="`${searchCriteria.minExperience}年`"></span>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>稼働率:</strong> <span x-text="`${searchCriteria.minWorkload}%以上`"></span>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>最小マッチング度:</strong> <span x-text="`${searchCriteria.minScore}%`"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- スキル分析 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-pie-chart me-2"></i>スキル分析
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="radar-chart">
+                                <div class="text-center">
+                                    <i class="bi bi-graph-up" style="font-size: 2rem;"></i>
+                                    <div class="mt-2">スキル適合度<br>レーダーチャート</div>
+                                </div>
+                            </div>
+                            <div class="mt-3 small">
+                                <template x-for="skillStat in skillStats" :key="skillStat.name">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span x-text="skillStat.name"></span>
+                                        <span x-text="`${skillStat.matchRate}%`"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('matchingResults', () => ({
+                selectedCandidates: [],
+                currentPage: 1,
+                pageSize: 10,
+                sortBy: 'score',
+                
+                filters: {
+                    availability: '',
+                    score: '',
+                    experience: '',
+                    remote: ''
+                },
+                
+                project: {
+                    id: '123e4567-e89b-12d3-a456-426614174000',
+                    name: 'ECサイトリニューアル',
+                    customer: '株式会社ABC商事',
+                    startDate: '2025-04-01',
+                    endDate: '2025-09-30',
+                    budget: {
+                        min: 7000000,
+                        max: 9000000,
+                        currency: 'JPY'
+                    },
+                    requiredSkills: ['Java', 'Spring Boot', 'React', 'PostgreSQL']
+                },
+                
+                searchCriteria: {
+                    minExperience: 3,
+                    minWorkload: 50,
+                    minScore: 60
+                },
+                
+                candidates: [
+                    {
+                        id: '456e7890-e89b-12d3-a456-426614174001',
+                        name: '山田太郎',
+                        title: 'シニアエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        matchingScore: 92,
+                        status: 'GENERATED',
+                        availability: 'available',
+                        experienceLevel: 'SENIOR',
+                        totalExperience: 8,
+                        rating: 4.5,
+                        hourlyRate: 8000,
+                        currentWorkload: 20,
+                        availableFrom: '2025-06-15',
+                        lastProject: 'ECサイト開発',
+                        skillMatches: [
+                            { name: 'Java', level: 'perfect', experience: 8, requiredLevel: 3, currentLevel: 5 },
+                            { name: 'Spring Boot', level: 'perfect', experience: 5, requiredLevel: 3, currentLevel: 4 },
+                            { name: 'React', level: 'partial', experience: 2, requiredLevel: 3, currentLevel: 2 },
+                            { name: 'PostgreSQL', level: 'perfect', experience: 6, requiredLevel: 3, currentLevel: 4 }
+                        ]
+                    },
+                    {
+                        id: '789e0123-e89b-12d3-a456-426614174002',
+                        name: '佐藤花子',
+                        title: 'フルスタックエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        matchingScore: 88,
+                        status: 'REVIEWED',
+                        availability: 'available',
+                        experienceLevel: 'MIDDLE',
+                        totalExperience: 6,
+                        rating: 4.2,
+                        hourlyRate: 7500,
+                        currentWorkload: 0,
+                        availableFrom: '2025-06-01',
+                        lastProject: 'Webアプリ開発',
+                        skillMatches: [
+                            { name: 'Java', level: 'perfect', experience: 6, requiredLevel: 3, currentLevel: 4 },
+                            { name: 'Spring Boot', level: 'perfect', experience: 4, requiredLevel: 3, currentLevel: 4 },
+                            { name: 'React', level: 'perfect', experience: 4, requiredLevel: 3, currentLevel: 4 },
+                            { name: 'PostgreSQL', level: 'partial', experience: 3, requiredLevel: 3, currentLevel: 2 }
+                        ]
+                    },
+                    {
+                        id: 'eng-003',
+                        name: '田中一郎',
+                        title: 'バックエンドエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        matchingScore: 85,
+                        availability: 'busy',
+                        totalExperience: 10,
+                        rating: 4.7,
+                        hourlyRate: 9000,
+                        currentWorkload: 60,
+                        availableFrom: '2025-07-01',
+                        lastProject: '基幹システム開発',
+                        skillMatches: [
+                            { name: 'Java', level: 'perfect', experience: 10 },
+                            { name: 'Spring Boot', level: 'perfect', experience: 6 },
+                            { name: 'React', level: 'missing', experience: 0 },
+                            { name: 'PostgreSQL', level: 'perfect', experience: 8 }
+                        ]
+                    },
+                    {
+                        id: 'eng-004',
+                        name: '鈴木次郎',
+                        title: 'ジュニアエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        matchingScore: 72,
+                        availability: 'available',
+                        totalExperience: 3,
+                        rating: 3.8,
+                        hourlyRate: 5500,
+                        currentWorkload: 30,
+                        availableFrom: '2025-06-10',
+                        lastProject: 'Webサイト制作',
+                        skillMatches: [
+                            { name: 'Java', level: 'partial', experience: 2 },
+                            { name: 'Spring Boot', level: 'partial', experience: 1 },
+                            { name: 'React', level: 'perfect', experience: 3 },
+                            { name: 'PostgreSQL', level: 'partial', experience: 2 }
+                        ]
+                    },
+                    {
+                        id: 'eng-005',
+                        name: '高橋美咲',
+                        title: 'フロントエンドエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        matchingScore: 68,
+                        availability: 'available',
+                        totalExperience: 4,
+                        rating: 4.0,
+                        hourlyRate: 6500,
+                        currentWorkload: 10,
+                        availableFrom: '2025-06-20',
+                        lastProject: 'Reactアプリ開発',
+                        skillMatches: [
+                            { name: 'Java', level: 'missing', experience: 0 },
+                            { name: 'Spring Boot', level: 'missing', experience: 0 },
+                            { name: 'React', level: 'perfect', experience: 4 },
+                            { name: 'PostgreSQL', level: 'partial', experience: 1 }
+                        ]
+                    }
+                ],
+                
+                skillStats: [
+                    { name: 'Java', matchRate: 80 },
+                    { name: 'Spring Boot', matchRate: 75 },
+                    { name: 'React', matchRate: 70 },
+                    { name: 'PostgreSQL', matchRate: 85 }
+                ],
+                
+                get filteredCandidates() {
+                    let filtered = this.candidates.filter(candidate => {
+                        if (this.filters.availability === 'available' && candidate.availability !== 'available') return false;
+                        if (this.filters.score === 'high' && candidate.matchingScore < 80) return false;
+                        if (this.filters.experience === 'senior' && candidate.totalExperience < 5) return false;
+                        if (this.filters.remote === 'yes' && candidate.currentWorkload > 80) return false;
+                        return true;
+                    });
+                    
+                    // ソート
+                    filtered.sort((a, b) => {
+                        switch (this.sortBy) {
+                            case 'score':
+                                return b.matchingScore - a.matchingScore;
+                            case 'availability':
+                                const availabilityOrder = { 'available': 0, 'busy': 1, 'unavailable': 2 };
+                                return availabilityOrder[a.availability] - availabilityOrder[b.availability];
+                            case 'experience':
+                                return b.totalExperience - a.totalExperience;
+                            case 'rating':
+                                return b.rating - a.rating;
+                            case 'cost':
+                                return a.hourlyRate - b.hourlyRate;
+                            default:
+                                return 0;
+                        }
+                    });
+                    
+                    return filtered;
+                },
+                
+                get totalPages() {
+                    return Math.ceil(this.filteredCandidates.length / this.pageSize);
+                },
+                
+                get visiblePages() {
+                    const pages = [];
+                    const start = Math.max(1, this.currentPage - 2);
+                    const end = Math.min(this.totalPages, this.currentPage + 2);
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
+                },
+                
+                toggleFilter(filterType, value) {
+                    if (this.filters[filterType] === value) {
+                        this.filters[filterType] = '';
+                    } else {
+                        this.filters[filterType] = value;
+                    }
+                },
+                
+                applySorting() {
+                    // ソートが変更されたときの処理
+                    this.currentPage = 1;
+                },
+                
+                toggleCandidateSelection(candidateId) {
+                    const index = this.selectedCandidates.indexOf(candidateId);
+                    if (index > -1) {
+                        this.selectedCandidates.splice(index, 1);
+                    } else {
+                        this.selectedCandidates.push(candidateId);
+                    }
+                },
+                
+                clearSelection() {
+                    this.selectedCandidates = [];
+                },
+                
+                getCandidateById(id) {
+                    return this.candidates.find(c => c.id === id);
+                },
+                
+                getHighScoreCandidates() {
+                    return this.candidates.filter(c => c.matchingScore >= 80);
+                },
+                
+                getMediumScoreCandidates() {
+                    return this.candidates.filter(c => c.matchingScore >= 60 && c.matchingScore < 80);
+                },
+                
+                getLowScoreCandidates() {
+                    return this.candidates.filter(c => c.matchingScore < 60);
+                },
+                
+                getAvailableCandidates() {
+                    return this.candidates.filter(c => c.availability === 'available');
+                },
+                
+                getAverageScore() {
+                    const total = this.candidates.reduce((sum, c) => sum + c.matchingScore, 0);
+                    return total / this.candidates.length;
+                },
+                
+                getScoreClass(score) {
+                    if (score >= 80) return 'score-excellent';
+                    if (score >= 60) return 'score-good';
+                    return 'score-fair';
+                },
+                
+                getSkillMatchClass(level) {
+                    switch (level) {
+                        case 'perfect': return 'skill-perfect';
+                        case 'partial': return 'skill-partial';
+                        case 'missing': return 'skill-missing';
+                        default: return 'skill-partial';
+                    }
+                },
+                
+                getAvailabilityText(availability) {
+                    switch (availability) {
+                        case 'available': return '稼働可能';
+                        case 'busy': return '一部稼働可';
+                        case 'unavailable': return '稼働不可';
+                        default: return '不明';
+                    }
+                },
+                
+                goToPage(page) {
+                    if (page >= 1 && page <= this.totalPages) {
+                        this.currentPage = page;
+                    }
+                },
+                
+                viewProfile(candidateId) {
+                    console.log('プロフィール表示:', candidateId);
+                },
+                
+                contactCandidate(candidateId) {
+                    console.log('候補者連絡:', candidateId);
+                },
+                
+                startEvaluation(candidateId) {
+                    console.log('評価開始:', candidateId);
+                },
+                
+                proceedToEvaluation() {
+                    if (this.selectedCandidates.length === 0) {
+                        alert('候補者を選択してください');
+                        return;
+                    }
+                    console.log('評価・判定画面へ:', this.selectedCandidates);
+                },
+                
+                exportResults() {
+                    console.log('結果エクスポート');
+                    alert('マッチング結果をエクスポートしました');
+                },
+                
+                refineSearch() {
+                    console.log('検索条件変更');
+                },
+                
+                formatCurrency(budgetObj) {
+                    if (typeof budgetObj === 'object' && budgetObj.min && budgetObj.max) {
+                        const min = new Intl.NumberFormat('ja-JP', {
+                            style: 'currency',
+                            currency: budgetObj.currency || 'JPY'
+                        }).format(budgetObj.min);
+                        const max = new Intl.NumberFormat('ja-JP', {
+                            style: 'currency', 
+                            currency: budgetObj.currency || 'JPY'
+                        }).format(budgetObj.max);
+                        return `${min} 〜 ${max}`;
+                    }
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY'
+                    }).format(budgetObj || 0);
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

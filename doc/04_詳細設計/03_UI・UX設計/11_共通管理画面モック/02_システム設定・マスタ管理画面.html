@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ja" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SES業務システム - システム設定・マスタ管理">
+    <title>システム設定・マスタ管理 - SES Manager</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
+    <link href="../04_インタラクティブプロトタイプ/css/ses-theme.css" rel="stylesheet">
+    <link href="../04_インタラクティブプロトタイプ/css/components.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app" x-data="systemSettings" x-init="init()">
+        <!-- Header -->
+        <header class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+            <div class="container-fluid">
+                <!-- Mobile menu toggle -->
+                <button class="btn btn-outline-secondary d-lg-none me-2" 
+                        type="button" 
+                        data-bs-toggle="offcanvas" 
+                        data-bs-target="#sidebar"
+                        aria-controls="sidebar">
+                    <i class="bi bi-list"></i>
+                </button>
+                
+                <!-- Logo -->
+                <a class="navbar-brand d-flex align-items-center" href="#" onclick="navigateToPage('dashboard')">
+                    <img src="../04_インタラクティブプロトタイプ/assets/images/logo.svg" alt="SES Manager" width="32" height="32" class="me-2">
+                    <span class="fw-bold">SES Manager</span>
+                </a>
+                
+                <!-- Search -->
+                <div class="flex-grow-1 mx-3 d-none d-md-block">
+                    <div class="input-group" style="max-width: 400px;">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control bg-light border-start-0" 
+                               placeholder="設定項目を検索..."
+                               x-model="searchQuery">
+                    </div>
+                </div>
+                
+                <!-- User menu -->
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" 
+                            data-bs-toggle="dropdown">
+                        <img src="../04_インタラクティブプロトタイプ/assets/images/user-avatar.png" 
+                             alt="プロフィール" 
+                             width="24" 
+                             height="24" 
+                             class="rounded-circle me-1">
+                        <span>管理者</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Sidebar -->
+        <nav class="sidebar offcanvas-lg offcanvas-start" id="sidebar" tabindex="-1">
+            <!-- Sidebar header (mobile) -->
+            <div class="offcanvas-header d-lg-none">
+                <h5 class="offcanvas-title">
+                    <img src="../04_インタラクティブプロトタイプ/assets/images/logo.svg" alt="SES Manager" width="24" height="24" class="me-2">
+                    SES Manager
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebar"></button>
+            </div>
+            
+            <!-- Sidebar body -->
+            <div class="offcanvas-body">
+                <ul class="nav flex-column">
+                    <!-- Dashboard -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('dashboard')">
+                            <i class="bi bi-speedometer2 nav-icon"></i>
+                            <span class="nav-text">ダッシュボード</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Engineers -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('engineers')">
+                            <i class="bi bi-people nav-icon"></i>
+                            <span class="nav-text">技術者管理</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Projects -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('projects')">
+                            <i class="bi bi-briefcase nav-icon"></i>
+                            <span class="nav-text">案件管理</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Matching -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('matching')">
+                            <i class="bi bi-shuffle nav-icon"></i>
+                            <span class="nav-text">マッチング</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Admin Menu -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#adminSubmenu" data-bs-toggle="collapse" aria-expanded="true" class="active">
+                            <i class="bi bi-gear nav-icon"></i>
+                            <span class="nav-text">システム管理</span>
+                            <i class="bi bi-chevron-down nav-arrow ms-auto"></i>
+                        </a>
+                        <div class="collapse show" id="adminSubmenu">
+                            <ul class="nav flex-column submenu">
+                                <li class="nav-item">
+                                    <a class="nav-link submenu-link" href="#" onclick="navigateToPage('admin/users')">
+                                        ユーザー管理
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link submenu-link active" href="#">
+                                        システム設定
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link submenu-link" href="#" onclick="navigateToPage('admin/audit')">
+                                        監査ログ
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+        
+        <!-- Main content -->
+        <main class="main-content">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="breadcrumb-container">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="#" onclick="navigateToPage('dashboard')">ダッシュボード</a></li>
+                    <li class="breadcrumb-item">システム管理</li>
+                    <li class="breadcrumb-item active" aria-current="page">システム設定</li>
+                </ol>
+            </nav>
+            
+            <!-- Page content -->
+            <div class="page-content">
+                <!-- Page header -->
+                <div class="page-header mb-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h1 class="h3 mb-2">システム設定・マスタ管理</h1>
+                            <p class="text-muted mb-0">システムの基本設定とマスタデータの管理を行います</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-success" @click="saveAllSettings()">
+                                <i class="bi bi-check-lg me-1"></i>設定保存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Settings Navigation Tabs -->
+                <ul class="nav nav-tabs mb-4" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" 
+                                id="general-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#general" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="general" 
+                                aria-selected="true">
+                            <i class="bi bi-gear me-1"></i>基本設定
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" 
+                                id="master-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#master" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="master" 
+                                aria-selected="false">
+                            <i class="bi bi-list-ul me-1"></i>マスタ管理
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" 
+                                id="notification-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#notification" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="notification" 
+                                aria-selected="false">
+                            <i class="bi bi-bell me-1"></i>通知設定
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" 
+                                id="integration-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#integration" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="integration" 
+                                aria-selected="false">
+                            <i class="bi bi-link-45deg me-1"></i>外部連携
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- General Settings -->
+                    <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+                        <div class="row g-4">
+                            <!-- System Information -->
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">システム基本情報</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">システム名</label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   x-model="settings.general.systemName"
+                                                   placeholder="SES Manager">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">会社名</label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   x-model="settings.general.companyName"
+                                                   placeholder="株式会社SESテクノロジー">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">タイムゾーン</label>
+                                            <select class="form-select" x-model="settings.general.timezone">
+                                                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                                                <option value="UTC">UTC</option>
+                                                <option value="America/New_York">America/New_York (EST)</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">言語設定</label>
+                                            <select class="form-select" x-model="settings.general.language">
+                                                <option value="ja">日本語</option>
+                                                <option value="en">English</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Business Settings -->
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">業務設定</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">営業日設定</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       id="autoHoliday"
+                                                       x-model="settings.business.autoHoliday">
+                                                <label class="form-check-label" for="autoHoliday">
+                                                    祝日を自動で営業日から除外
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">標準稼働時間</label>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <input type="time" 
+                                                           class="form-control" 
+                                                           x-model="settings.business.workStartTime">
+                                                </div>
+                                                <div class="col-6">
+                                                    <input type="time" 
+                                                           class="form-control" 
+                                                           x-model="settings.business.workEndTime">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">月次締日</label>
+                                            <select class="form-select" x-model="settings.business.closingDate">
+                                                <option value="end-month">月末</option>
+                                                <option value="15">15日</option>
+                                                <option value="20">20日</option>
+                                                <option value="25">25日</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">消費税率（%）</label>
+                                            <input type="number" 
+                                                   class="form-control" 
+                                                   x-model="settings.business.taxRate"
+                                                   min="0" 
+                                                   max="100" 
+                                                   step="0.1">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Master Data -->
+                    <div class="tab-pane fade" id="master" role="tabpanel" aria-labelledby="master-tab">
+                        <div class="row g-4">
+                            <!-- Skills Master -->
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="card-title mb-0">スキルマスタ</h6>
+                                        <button class="btn btn-primary btn-sm" @click="showSkillForm = true">
+                                            <i class="bi bi-plus"></i> 追加
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>カテゴリ</th>
+                                                        <th>スキル名</th>
+                                                        <th>操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="skill in skills" :key="skill.id">
+                                                        <tr>
+                                                            <td>
+                                                                <span class="badge bg-secondary" x-text="skill.category"></span>
+                                                            </td>
+                                                            <td x-text="skill.name"></td>
+                                                            <td>
+                                                                <button class="btn btn-outline-primary btn-sm me-1" 
+                                                                        @click="editSkill(skill)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+                                                                <button class="btn btn-outline-danger btn-sm" 
+                                                                        @click="deleteSkill(skill)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Companies Master -->
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="card-title mb-0">企業マスタ</h6>
+                                        <button class="btn btn-primary btn-sm" @click="showCompanyForm = true">
+                                            <i class="bi bi-plus"></i> 追加
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>企業名</th>
+                                                        <th>種別</th>
+                                                        <th>操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="company in companies" :key="company.id">
+                                                        <tr>
+                                                            <td x-text="company.name"></td>
+                                                            <td>
+                                                                <span class="badge" 
+                                                                      :class="company.type === 'CLIENT' ? 'bg-primary' : 'bg-success'"
+                                                                      x-text="company.type === 'CLIENT' ? 'クライアント' : 'パートナー'"></span>
+                                                            </td>
+                                                            <td>
+                                                                <button class="btn btn-outline-primary btn-sm me-1" 
+                                                                        @click="editCompany(company)">
+                                                                    <i class="bi bi-pencil"></i>
+                                                                </button>
+                                                                <button class="btn btn-outline-danger btn-sm" 
+                                                                        @click="deleteCompany(company)">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification Settings -->
+                    <div class="tab-pane fade" id="notification" role="tabpanel" aria-labelledby="notification-tab">
+                        <div class="row g-4">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">通知設定</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-4">
+                                            <h6>メール通知</h6>
+                                            <div class="form-check">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       id="emailNewEngineer"
+                                                       x-model="settings.notifications.emailNewEngineer">
+                                                <label class="form-check-label" for="emailNewEngineer">
+                                                    新規技術者登録時にメール通知
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       id="emailNewProject"
+                                                       x-model="settings.notifications.emailNewProject">
+                                                <label class="form-check-label" for="emailNewProject">
+                                                    新規案件登録時にメール通知
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       id="emailMatching"
+                                                       x-model="settings.notifications.emailMatching">
+                                                <label class="form-check-label" for="emailMatching">
+                                                    マッチング結果のメール通知
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-4">
+                                            <h6>Slack通知</h6>
+                                            <div class="form-check">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       id="slackEnabled"
+                                                       x-model="settings.notifications.slackEnabled">
+                                                <label class="form-check-label" for="slackEnabled">
+                                                    Slack通知を有効にする
+                                                </label>
+                                            </div>
+                                            <div class="mt-2" x-show="settings.notifications.slackEnabled">
+                                                <label class="form-label">Webhook URL</label>
+                                                <input type="url" 
+                                                       class="form-control" 
+                                                       x-model="settings.notifications.slackWebhook"
+                                                       placeholder="https://hooks.slack.com/services/...">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Integration Settings -->
+                    <div class="tab-pane fade" id="integration" role="tabpanel" aria-labelledby="integration-tab">
+                        <div class="row g-4">
+                            <!-- CloudSign Integration -->
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">CloudSign連携</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" 
+                                                   type="checkbox" 
+                                                   id="cloudSignEnabled"
+                                                   x-model="settings.integrations.cloudSign.enabled">
+                                            <label class="form-check-label" for="cloudSignEnabled">
+                                                CloudSign連携を有効にする
+                                            </label>
+                                        </div>
+                                        <div x-show="settings.integrations.cloudSign.enabled">
+                                            <div class="mb-3">
+                                                <label class="form-label">API Key</label>
+                                                <input type="password" 
+                                                       class="form-control" 
+                                                       x-model="settings.integrations.cloudSign.apiKey"
+                                                       placeholder="CloudSign API Key">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Environment</label>
+                                                <select class="form-select" x-model="settings.integrations.cloudSign.environment">
+                                                    <option value="sandbox">Sandbox</option>
+                                                    <option value="production">Production</option>
+                                                </select>
+                                            </div>
+                                            <button class="btn btn-outline-primary btn-sm" @click="testCloudSignConnection()">
+                                                <i class="bi bi-wifi"></i> 接続テスト
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- MoneyForward Integration -->
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">MoneyForward連携</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" 
+                                                   type="checkbox" 
+                                                   id="moneyForwardEnabled"
+                                                   x-model="settings.integrations.moneyForward.enabled">
+                                            <label class="form-check-label" for="moneyForwardEnabled">
+                                                MoneyForward連携を有効にする
+                                            </label>
+                                        </div>
+                                        <div x-show="settings.integrations.moneyForward.enabled">
+                                            <div class="mb-3">
+                                                <label class="form-label">Client ID</label>
+                                                <input type="text" 
+                                                       class="form-control" 
+                                                       x-model="settings.integrations.moneyForward.clientId"
+                                                       placeholder="MoneyForward Client ID">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Client Secret</label>
+                                                <input type="password" 
+                                                       class="form-control" 
+                                                       x-model="settings.integrations.moneyForward.clientSecret"
+                                                       placeholder="MoneyForward Client Secret">
+                                            </div>
+                                            <button class="btn btn-outline-primary btn-sm" @click="testMoneyForwardConnection()">
+                                                <i class="bi bi-wifi"></i> 接続テスト
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Skill Form Modal -->
+                <div class="modal fade" 
+                     :class="{ 'show d-block': showSkillForm }" 
+                     tabindex="-1" 
+                     x-show="showSkillForm"
+                     @click.away="showSkillForm = false">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">スキル追加・編集</h5>
+                                <button type="button" class="btn-close" @click="showSkillForm = false"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form @submit.prevent="saveSkill()">
+                                    <div class="mb-3">
+                                        <label class="form-label">スキル名</label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               x-model="skillForm.name" 
+                                               required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">カテゴリ</label>
+                                        <select class="form-select" x-model="skillForm.category" required>
+                                            <option value="">選択してください</option>
+                                            <option value="PROGRAMMING">プログラミング</option>
+                                            <option value="FRAMEWORK">フレームワーク</option>
+                                            <option value="DATABASE">データベース</option>
+                                            <option value="CLOUD">クラウド</option>
+                                            <option value="TOOLS">ツール</option>
+                                        </select>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @click="showSkillForm = false">
+                                    キャンセル
+                                </button>
+                                <button type="button" class="btn btn-primary" @click="saveSkill()">
+                                    保存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal Backdrop -->
+                <div class="modal-backdrop fade" 
+                     :class="{ 'show': showSkillForm || showCompanyForm }" 
+                     x-show="showSkillForm || showCompanyForm"></div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Scripts -->
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- System Settings Component -->
+    <script>
+        Alpine.data('systemSettings', () => ({
+            // Data state
+            settings: {
+                general: {
+                    systemName: 'SES Manager',
+                    companyName: '株式会社SESテクノロジー',
+                    timezone: 'Asia/Tokyo',
+                    language: 'ja'
+                },
+                business: {
+                    autoHoliday: true,
+                    workStartTime: '09:00',
+                    workEndTime: '18:00',
+                    closingDate: 'end-month',
+                    taxRate: 10.0
+                },
+                notifications: {
+                    emailNewEngineer: true,
+                    emailNewProject: true,
+                    emailMatching: false,
+                    slackEnabled: false,
+                    slackWebhook: ''
+                },
+                integrations: {
+                    cloudSign: {
+                        enabled: false,
+                        apiKey: '',
+                        environment: 'sandbox'
+                    },
+                    moneyForward: {
+                        enabled: false,
+                        clientId: '',
+                        clientSecret: ''
+                    }
+                }
+            },
+            
+            skills: [],
+            companies: [],
+            searchQuery: '',
+            
+            // Modal state
+            showSkillForm: false,
+            showCompanyForm: false,
+            editingSkill: null,
+            editingCompany: null,
+            skillForm: {
+                name: '',
+                category: ''
+            },
+            companyForm: {
+                name: '',
+                type: ''
+            },
+            
+            // Initialize
+            init() {
+                this.loadMasterData();
+            },
+            
+            // Mock data loading
+            loadMasterData() {
+                this.skills = [
+                    { id: 1, name: 'Java', category: 'PROGRAMMING' },
+                    { id: 2, name: 'React', category: 'FRAMEWORK' },
+                    { id: 3, name: 'PostgreSQL', category: 'DATABASE' },
+                    { id: 4, name: 'AWS', category: 'CLOUD' }
+                ];
+                
+                this.companies = [
+                    { id: 1, name: '株式会社テックソリューション', type: 'CLIENT' },
+                    { id: 2, name: '合同会社デジタルイノベーション', type: 'CLIENT' },
+                    { id: 3, name: '株式会社SESパートナー', type: 'PARTNER' }
+                ];
+            },
+            
+            // Settings actions
+            saveAllSettings() {
+                alert('設定が保存されました');
+            },
+            
+            // Skill management
+            editSkill(skill) {
+                this.editingSkill = skill;
+                this.skillForm = {
+                    name: skill.name,
+                    category: skill.category
+                };
+                this.showSkillForm = true;
+            },
+            
+            saveSkill() {
+                if (this.editingSkill) {
+                    Object.assign(this.editingSkill, this.skillForm);
+                } else {
+                    const newSkill = {
+                        id: Math.max(...this.skills.map(s => s.id)) + 1,
+                        ...this.skillForm
+                    };
+                    this.skills.push(newSkill);
+                }
+                this.showSkillForm = false;
+                this.resetSkillForm();
+            },
+            
+            deleteSkill(skill) {
+                if (confirm(`スキル「${skill.name}」を削除しますか？`)) {
+                    const index = this.skills.findIndex(s => s.id === skill.id);
+                    this.skills.splice(index, 1);
+                }
+            },
+            
+            resetSkillForm() {
+                this.skillForm = {
+                    name: '',
+                    category: ''
+                };
+                this.editingSkill = null;
+            },
+            
+            // Company management
+            editCompany(company) {
+                this.editingCompany = company;
+                this.companyForm = {
+                    name: company.name,
+                    type: company.type
+                };
+                this.showCompanyForm = true;
+            },
+            
+            deleteCompany(company) {
+                if (confirm(`企業「${company.name}」を削除しますか？`)) {
+                    const index = this.companies.findIndex(c => c.id === company.id);
+                    this.companies.splice(index, 1);
+                }
+            },
+            
+            // Integration tests
+            testCloudSignConnection() {
+                alert('CloudSign接続テストを実行中...\n\n✅ 接続成功');
+            },
+            
+            testMoneyForwardConnection() {
+                alert('MoneyForward接続テストを実行中...\n\n✅ 接続成功');
+            }
+        }));
+        
+        // Navigation function
+        function navigateToPage(page) {
+            console.log(`Navigate to: ${page}`);
+        }
+    </script>
+</body>
+</html>

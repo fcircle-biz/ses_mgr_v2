@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>勤怠承認・管理 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+            --approval-pending: #ffeaa7;
+            --approval-approved: #00b894;
+            --approval-rejected: #e17055;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .approval-dashboard {
+            background: linear-gradient(135deg, var(--ses-primary), #0a58ca);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .approval-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .approval-card {
+            background: white;
+            border-radius: 1rem;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.05);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        
+        .approval-card-header {
+            background: var(--ses-light);
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+        
+        .approval-card-body {
+            padding: 1.5rem;
+        }
+        
+        .timesheet-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .timesheet-item:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 0.25rem 0.5rem rgba(13, 110, 253, 0.1);
+        }
+        
+        .timesheet-item.selected {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .priority-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 0 0.75rem 0.75rem 0;
+        }
+        
+        .priority-high { background: var(--ses-danger); }
+        .priority-medium { background: var(--ses-warning); }
+        .priority-low { background: var(--ses-success); }
+        
+        .engineer-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--ses-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        .approval-level-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        .level-step {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            position: relative;
+        }
+        
+        .level-step.completed {
+            background: var(--approval-approved);
+            color: white;
+        }
+        
+        .level-step.current {
+            background: var(--approval-pending);
+            color: #333;
+            animation: pulse 2s infinite;
+        }
+        
+        .level-step.pending {
+            background: #e9ecef;
+            color: var(--ses-secondary);
+        }
+        
+        .level-step.rejected {
+            background: var(--approval-rejected);
+            color: white;
+        }
+        
+        .level-connector {
+            flex: 1;
+            height: 2px;
+            background: #dee2e6;
+            position: relative;
+        }
+        
+        .level-connector.completed {
+            background: var(--approval-approved);
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 234, 167, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(255, 234, 167, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 234, 167, 0); }
+        }
+        
+        .filter-tabs {
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-tabs .nav-link {
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 1rem 1.5rem;
+            font-weight: 500;
+            color: var(--ses-secondary);
+            position: relative;
+        }
+        
+        .filter-tabs .nav-link.active {
+            color: var(--ses-primary);
+            border-bottom-color: var(--ses-primary);
+            background: none;
+        }
+        
+        .filter-tabs .nav-link .badge {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+        }
+        
+        .bulk-actions {
+            background: var(--ses-light);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #dee2e6;
+        }
+        
+        .approval-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .status-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background: rgba(255, 193, 7, 0.1);
+            color: #b08800;
+            border: 1px solid rgba(255, 193, 7, 0.25);
+        }
+        
+        .status-approved {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--ses-success);
+            border: 1px solid rgba(25, 135, 84, 0.25);
+        }
+        
+        .status-rejected {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+            border: 1px solid rgba(220, 53, 69, 0.25);
+        }
+        
+        .urgency-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: blink 1.5s infinite;
+        }
+        
+        .urgency-high {
+            background: var(--ses-danger);
+        }
+        
+        .urgency-medium {
+            background: var(--ses-warning);
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        .approval-history {
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .history-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--ses-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .quick-actions {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        
+        .floating-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+            margin-bottom: 0.5rem;
+            border: none;
+        }
+        
+        .delegation-card {
+            background: linear-gradient(135deg, #e8f5e8, #d4edda);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .approval-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .stat-number {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body x-data="approvalManagement" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>管理者 田中
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">勤怠管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">承認・管理</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">勤怠承認・管理</h1>
+                    <p class="text-muted mb-0">勤怠データの承認・差し戻し・ワークフロー管理</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="refreshData()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>更新
+                    </button>
+                    <button class="btn btn-outline-primary" @click="exportApprovalData()">
+                        <i class="bi bi-download me-1"></i>承認データ出力
+                    </button>
+                    <button class="btn btn-success" @click="openBulkApprovalModal()">
+                        <i class="bi bi-check-circle me-1"></i>一括承認
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 承認ダッシュボード -->
+            <div class="approval-dashboard">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h4 class="mb-1">承認ダッシュボード</h4>
+                        <p class="mb-0 opacity-75">承認待ち案件の状況</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-light btn-sm" @click="openDelegationModal()">
+                            <i class="bi bi-person-plus me-1"></i>承認委任
+                        </button>
+                        <button class="btn btn-light btn-sm" @click="openNotificationSettings()">
+                            <i class="bi bi-bell me-1"></i>通知設定
+                        </button>
+                    </div>
+                </div>
+                <div class="approval-stats">
+                    <div class="stat-item">
+                        <div class="stat-number" x-text="dashboard.pendingCount"></div>
+                        <div class="stat-label">承認待ち</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" x-text="dashboard.overdueCount"></div>
+                        <div class="stat-label">期限超過</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" x-text="dashboard.todayApproved"></div>
+                        <div class="stat-label">本日承認</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" x-text="dashboard.avgApprovalDays"></div>
+                        <div class="stat-label">平均承認日数</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 一括操作 -->
+            <div class="bulk-actions" x-show="selectedTimesheets.length > 0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong x-text="selectedTimesheets.length + '件'"></strong>の勤怠表が選択されています
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" @click="clearSelection()">
+                            <i class="bi bi-x me-1"></i>選択解除
+                        </button>
+                        <button class="btn btn-success btn-sm" @click="bulkApprove()">
+                            <i class="bi bi-check-circle me-1"></i>一括承認
+                        </button>
+                        <button class="btn btn-danger btn-sm" @click="bulkReject()">
+                            <i class="bi bi-x-circle me-1"></i>一括差し戻し
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs filter-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pending-tab" 
+                            @click="currentTab = 'pending'">
+                        <i class="bi bi-clock me-2"></i>承認待ち
+                        <span class="badge bg-warning" x-text="dashboard.pendingCount"></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#approved-tab"
+                            @click="currentTab = 'approved'">
+                        <i class="bi bi-check-circle me-2"></i>承認済み
+                        <span class="badge bg-success" x-text="dashboard.approvedCount"></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#rejected-tab"
+                            @click="currentTab = 'rejected'">
+                        <i class="bi bi-x-circle me-2"></i>差し戻し
+                        <span class="badge bg-danger" x-text="dashboard.rejectedCount"></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#history-tab"
+                            @click="currentTab = 'history'">
+                        <i class="bi bi-journal-text me-2"></i>承認履歴
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content mt-4">
+                <!-- 承認待ち -->
+                <div class="tab-pane fade show active" id="pending-tab" x-show="currentTab === 'pending'">
+                    <template x-for="timesheet in pendingTimesheets" :key="timesheet.id">
+                        <div class="timesheet-item" :class="{ selected: isSelected(timesheet.id) }" 
+                             @click="toggleSelection(timesheet.id)">
+                            <div class="priority-indicator" :class="'priority-' + timesheet.priority"></div>
+                            <div class="urgency-indicator" :class="'urgency-' + timesheet.urgency"
+                                 x-show="timesheet.urgency !== 'low'"></div>
+                            
+                            <div class="row align-items-center">
+                                <div class="col-md-2">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <input type="checkbox" class="form-check-input" 
+                                               :checked="isSelected(timesheet.id)"
+                                               @click.stop="toggleSelection(timesheet.id)">
+                                        <div class="engineer-avatar" x-text="timesheet.engineerInitials"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="mb-1" x-text="timesheet.engineerName"></h6>
+                                    <small class="text-muted" x-text="timesheet.projectName"></small>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="fw-medium" x-text="timesheet.period"></div>
+                                    <small class="text-muted">
+                                        <span x-text="timesheet.summary.totalWorkingHours + 'h'"></span>
+                                        （残業: <span x-text="timesheet.summary.totalOvertimeHours + 'h'"></span>）
+                                    </small>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="small text-muted">提出日</div>
+                                    <div x-text="formatDate(timesheet.submittedAt)"></div>
+                                    <div class="small" :class="timesheet.isOverdue ? 'text-danger' : 'text-muted'">
+                                        期限: <span x-text="formatDate(timesheet.deadline)"></span>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="approval-level-indicator">
+                                        <template x-for="(level, index) in timesheet.approvalLevels" :key="index">
+                                            <div>
+                                                <div class="level-step" :class="level.status" 
+                                                     :title="level.name">
+                                                    <i :class="getLevelIcon(level.status)"></i>
+                                                </div>
+                                                <div class="level-connector" :class="level.status" 
+                                                     x-show="index < timesheet.approvalLevels.length - 1"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <small class="text-muted" x-text="timesheet.currentLevelName"></small>
+                                </div>
+                                <div class="col-md-1">
+                                    <div class="approval-actions">
+                                        <button class="btn btn-success btn-sm" @click.stop="approveTimesheet(timesheet.id)">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                        <button class="btn btn-danger btn-sm" @click.stop="rejectTimesheet(timesheet.id)">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" @click.stop="viewDetails(timesheet.id)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 展開コンテンツ -->
+                            <div x-show="expandedTimesheet === timesheet.id" class="mt-3 pt-3 border-top">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>工数詳細</h6>
+                                        <div class="small">
+                                            <div>総勤務日数: <strong x-text="timesheet.summary.totalWorkingDays + '日'"></strong></div>
+                                            <div>総労働時間: <strong x-text="timesheet.summary.totalWorkingHours + '時間'"></strong></div>
+                                            <div>残業時間: <strong x-text="timesheet.summary.totalOvertimeHours + '時間'"></strong></div>
+                                            <div>有給取得: <strong x-text="timesheet.paidLeaveDays + '日'"></strong></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>技術者コメント</h6>
+                                        <p class="small text-muted" x-text="timesheet.engineerComment"></p>
+                                    </div>
+                                </div>
+                                
+                                <!-- 承認履歴 -->
+                                <div class="approval-history" x-show="timesheet.approvalHistory.length > 0">
+                                    <h6 class="mb-2">承認履歴</h6>
+                                    <template x-for="history in timesheet.approvalHistory" :key="history.id">
+                                        <div class="history-item">
+                                            <div class="history-avatar" x-text="history.approverInitials"></div>
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex justify-content-between">
+                                                    <strong x-text="history.approverName"></strong>
+                                                    <small class="text-muted" x-text="formatDateTime(history.approvedAt)"></small>
+                                                </div>
+                                                <div class="small text-muted" x-text="history.comment"></div>
+                                            </div>
+                                            <div>
+                                                <span class="status-badge" :class="'status-' + history.action" x-text="history.actionText"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <div x-show="pendingTimesheets.length === 0" class="text-center text-muted py-5">
+                        <i class="bi bi-check-circle-fill display-1 mb-3"></i>
+                        <h5>承認待ちの勤怠表はありません</h5>
+                        <p>すべての勤怠表が処理済みです。</p>
+                    </div>
+                </div>
+                
+                <!-- 承認済み -->
+                <div class="tab-pane fade" id="approved-tab" x-show="currentTab === 'approved'">
+                    <div class="approval-card">
+                        <div class="approval-card-header">
+                            <h5 class="mb-0">承認済み勤怠表</h5>
+                            <div class="d-flex gap-2">
+                                <select class="form-select form-select-sm" x-model="approvedFilters.period">
+                                    <option value="">全期間</option>
+                                    <option value="2025-06">2025年6月</option>
+                                    <option value="2025-05">2025年5月</option>
+                                </select>
+                                <select class="form-select form-select-sm" x-model="approvedFilters.project">
+                                    <option value="">全プロジェクト</option>
+                                    <option value="proj-001">ECサイトリニューアル</option>
+                                    <option value="proj-002">基幹システム開発</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="approval-card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>技術者</th>
+                                            <th>期間</th>
+                                            <th>プロジェクト</th>
+                                            <th>労働時間</th>
+                                            <th>承認日</th>
+                                            <th>最終承認者</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="timesheet in approvedTimesheets" :key="timesheet.id">
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="engineer-avatar" style="width: 32px; height: 32px; font-size: 0.8rem;" 
+                                                             x-text="timesheet.engineerInitials"></div>
+                                                        <div x-text="timesheet.engineerName"></div>
+                                                    </div>
+                                                </td>
+                                                <td x-text="timesheet.period"></td>
+                                                <td x-text="timesheet.projectName"></td>
+                                                <td>
+                                                    <div x-text="timesheet.summary.totalWorkingHours + 'h'"></div>
+                                                    <small class="text-muted">残業: <span x-text="timesheet.summary.totalOvertimeHours + 'h'"></span></small>
+                                                </td>
+                                                <td x-text="formatDate(timesheet.approvedAt)"></td>
+                                                <td x-text="timesheet.finalApprover"></td>
+                                                <td>
+                                                    <button class="btn btn-outline-secondary btn-sm" @click="viewDetails(timesheet.id)">
+                                                        <i class="bi bi-eye me-1"></i>詳細
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 差し戻し -->
+                <div class="tab-pane fade" id="rejected-tab" x-show="currentTab === 'rejected'">
+                    <template x-for="timesheet in rejectedTimesheets" :key="timesheet.id">
+                        <div class="timesheet-item">
+                            <div class="priority-indicator priority-high"></div>
+                            
+                            <div class="row align-items-center">
+                                <div class="col-md-2">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="engineer-avatar" x-text="timesheet.engineerInitials"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="mb-1" x-text="timesheet.engineerName"></h6>
+                                    <small class="text-muted" x-text="timesheet.projectName"></small>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="fw-medium" x-text="timesheet.period"></div>
+                                    <small class="text-muted">
+                                        <span x-text="timesheet.summary.totalWorkingHours + 'h'"></span>
+                                    </small>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="small text-muted">差し戻し日</div>
+                                    <div x-text="formatDate(timesheet.rejectedAt)"></div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="small text-muted">差し戻し理由</div>
+                                    <div class="small" x-text="timesheet.rejectionReason"></div>
+                                </div>
+                                <div class="col-md-1">
+                                    <button class="btn btn-outline-secondary btn-sm" @click="viewDetails(timesheet.id)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                
+                <!-- 承認履歴 -->
+                <div class="tab-pane fade" id="history-tab" x-show="currentTab === 'history'">
+                    <div class="approval-card">
+                        <div class="approval-card-header">
+                            <h5 class="mb-0">承認履歴</h5>
+                            <div class="d-flex gap-2">
+                                <input type="date" class="form-control form-control-sm" x-model="historyFilters.fromDate">
+                                <input type="date" class="form-control form-control-sm" x-model="historyFilters.toDate">
+                                <button class="btn btn-outline-primary btn-sm" @click="filterHistory()">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="approval-card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>日時</th>
+                                            <th>技術者</th>
+                                            <th>期間</th>
+                                            <th>承認者</th>
+                                            <th>アクション</th>
+                                            <th>コメント</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="history in approvalHistory" :key="history.id">
+                                            <tr>
+                                                <td x-text="formatDateTime(history.actionAt)"></td>
+                                                <td x-text="history.engineerName"></td>
+                                                <td x-text="history.period"></td>
+                                                <td x-text="history.approverName"></td>
+                                                <td>
+                                                    <span class="status-badge" :class="'status-' + history.action" x-text="history.actionText"></span>
+                                                </td>
+                                                <td>
+                                                    <div class="small" x-text="history.comment"></div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- クイックアクション -->
+    <div class="quick-actions">
+        <button class="btn btn-success floating-button" @click="quickApproveAll()" title="全件承認">
+            <i class="bi bi-check-all"></i>
+        </button>
+        <button class="btn btn-primary floating-button" @click="openApprovalSettings()" title="承認設定">
+            <i class="bi bi-gear"></i>
+        </button>
+    </div>
+    
+    <!-- 承認・差し戻しモーダル -->
+    <div class="modal fade" id="approvalModal" tabindex="-1" x-ref="approvalModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi" :class="approvalAction === 'approve' ? 'bi-check-circle' : 'bi-x-circle'" class="me-2"></i>
+                        <span x-text="approvalAction === 'approve' ? '承認確認' : '差し戻し確認'"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">コメント</label>
+                        <textarea class="form-control" rows="3" x-model="approvalComment" 
+                                  :placeholder="approvalAction === 'approve' ? '承認コメント（任意）' : '差し戻し理由を入力してください'"></textarea>
+                    </div>
+                    <div x-show="approvalAction === 'approve'" class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="notifyEngineer" x-model="notifyOptions.engineer">
+                            <label class="form-check-label" for="notifyEngineer">技術者に通知</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="notifyPM" x-model="notifyOptions.pm">
+                            <label class="form-check-label" for="notifyPM">プロジェクトマネージャーに通知</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn" 
+                            :class="approvalAction === 'approve' ? 'btn-success' : 'btn-danger'"
+                            @click="executeApprovalAction()">
+                        <i class="bi" :class="approvalAction === 'approve' ? 'bi-check' : 'bi-x'" class="me-1"></i>
+                        <span x-text="approvalAction === 'approve' ? '承認実行' : '差し戻し実行'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('approvalManagement', () => ({
+                currentTab: 'pending',
+                selectedTimesheets: [],
+                expandedTimesheet: null,
+                approvalAction: 'approve',
+                approvalComment: '',
+                
+                dashboard: {
+                    pendingCount: 12,
+                    overdueCount: 3,
+                    todayApproved: 8,
+                    avgApprovalDays: 2.1,
+                    approvedCount: 45,
+                    rejectedCount: 2
+                },
+                
+                notifyOptions: {
+                    engineer: true,
+                    pm: false
+                },
+                
+                approvedFilters: {
+                    period: '',
+                    project: ''
+                },
+                
+                historyFilters: {
+                    fromDate: '',
+                    toDate: ''
+                },
+                
+                pendingTimesheets: [
+                    {
+                        id: '550e8400-e29b-41d4-a716-446655440100',
+                        engineerId: '550e8400-e29b-41d4-a716-446655440000',
+                        engineerName: '山田太郎',
+                        engineerInitials: '山田',
+                        contractId: '770a0622-a4ad-63f6-c938-668877662000',
+                        projectId: '123e4567-e89b-12d3-a456-426614174000',
+                        projectName: 'ECサイトリニューアル',
+                        period: '2025-06',
+                        status: 'PENDING_APPROVAL',
+                        submissionDeadline: '2025-06-05T23:59:59',
+                        approvalDeadline: '2025-06-10T23:59:59',
+                        summary: {
+                            totalWorkingDays: 22,
+                            totalWorkingHours: 168,
+                            totalOvertimeHours: 8,
+                            totalSpecialWorkHours: 0,
+                            holidayWorkDays: 0,
+                            paidLeaveDays: 0
+                        },
+                        isLocked: false,
+                        isEditable: false,
+                        isSubmittable: false,
+                        isOverdue: false,
+                        engineerComment: '月初にクライアント要件変更により残業が発生しました。',
+                        approvalFlow: {
+                            currentStepIndex: 1,
+                            steps: [
+                                { 
+                                    level: 'FIRST_APPROVAL', 
+                                    stepName: 'PM承認', 
+                                    isRequired: true, 
+                                    status: 'PENDING',
+                                    approverId: null,
+                                    approverName: null,
+                                    approvedAt: null,
+                                    comment: null
+                                },
+                                { 
+                                    level: 'FINAL_APPROVAL', 
+                                    stepName: '管理部門承認', 
+                                    isRequired: true, 
+                                    status: 'NOT_STARTED',
+                                    approverId: null,
+                                    approverName: null,
+                                    approvedAt: null,
+                                    comment: null
+                                }
+                            ]
+                        },
+                        approvalHistory: [
+                            {
+                                id: 1,
+                                approverName: '山田太郎（本人）',
+                                approverInitials: '山田',
+                                action: 'submitted',
+                                actionText: '提出',
+                                comment: '勤怠データを提出しました',
+                                approvedAt: '2025-06-01T10:00:00'
+                            }
+                        ]
+                    },
+                    {
+                        id: 'ts-002',
+                        engineerName: '佐藤花子',
+                        engineerInitials: '佐藤',
+                        projectName: '基幹システム開発',
+                        period: '2025年6月',
+                        summary: {
+                            totalWorkingDays: 21,
+                            totalWorkingHours: 160,
+                            totalOvertimeHours: 0,
+                            totalSpecialWorkHours: 0,
+                            holidayWorkDays: 0,
+                            paidLeaveDays: 0
+                        },
+                        submittedAt: '2025-06-02T14:00:00',
+                        deadline: '2025-06-05T23:59:59',
+                        priority: 'medium',
+                        urgency: 'low',
+                        isOverdue: false,
+                        currentLevelName: 'PM承認',
+                        engineerComment: '通常勤務でした。',
+                        approvalLevels: [
+                            { name: '技術者提出', status: 'completed' },
+                            { name: 'PM承認', status: 'current' },
+                            { name: '管理部門承認', status: 'pending' }
+                        ],
+                        approvalHistory: []
+                    }
+                ],
+                
+                approvedTimesheets: [
+                    {
+                        id: '660f9511-f39c-52e5-b827-557766551100',
+                        engineerId: '770a0622-a4ad-63f6-c938-668877662222',
+                        engineerName: '田中一郎',
+                        engineerInitials: '田中',
+                        contractId: '880b1733-b5be-74g7-d049-779988773000',
+                        projectId: '789e0123-e89b-12d3-a456-426614174002',
+                        projectName: 'モバイルアプリ開発',
+                        period: '2025-05',
+                        status: 'APPROVED',
+                        summary: {
+                            totalWorkingDays: 23,
+                            totalWorkingHours: 176,
+                            totalOvertimeHours: 16,
+                            totalSpecialWorkHours: 0,
+                            holidayWorkDays: 0,
+                            paidLeaveDays: 0
+                        },
+                        isLocked: true,
+                        isEditable: false,
+                        approvedAt: '2025-05-08T16:30:00',
+                        finalApprover: '管理者 田中'
+                    }
+                ],
+                
+                rejectedTimesheets: [
+                    {
+                        id: '990c2844-c6cf-85h8-e15a-88aa99884000',
+                        engineerId: 'aa0d3955-d7da-96i9-f26b-99bb00995555',
+                        engineerName: '鈴木次郎',
+                        engineerInitials: '鈴木',
+                        contractId: 'bb1e4a66-e8eb-07j0-037c-00cc11006666',
+                        projectId: '123e4567-e89b-12d3-a456-426614174000',
+                        projectName: 'ECサイトリニューアル',
+                        period: '2025-05',
+                        status: 'REJECTED',
+                        summary: {
+                            totalWorkingDays: 24,
+                            totalWorkingHours: 185,
+                            totalOvertimeHours: 25,
+                            totalSpecialWorkHours: 0,
+                            holidayWorkDays: 0,
+                            paidLeaveDays: 0
+                        },
+                        isLocked: false,
+                        isEditable: true,
+                        rejectedAt: '2025-05-10T11:00:00',
+                        rejectionReason: '労働時間の記録に不備があります'
+                    }
+                ],
+                
+                approvalHistory: [
+                    {
+                        id: 1,
+                        actionAt: '2025-06-01T16:30:00',
+                        engineerName: '田中一郎',
+                        period: '2025年5月',
+                        approverName: '管理者 田中',
+                        action: 'approved',
+                        actionText: '承認',
+                        comment: '問題なし'
+                    }
+                ],
+                
+                isSelected(timesheetId) {
+                    return this.selectedTimesheets.includes(timesheetId);
+                },
+                
+                toggleSelection(timesheetId) {
+                    const index = this.selectedTimesheets.indexOf(timesheetId);
+                    if (index === -1) {
+                        this.selectedTimesheets.push(timesheetId);
+                    } else {
+                        this.selectedTimesheets.splice(index, 1);
+                    }
+                },
+                
+                clearSelection() {
+                    this.selectedTimesheets = [];
+                },
+                
+                formatDate(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                },
+                
+                formatDateTime(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                },
+                
+                getLevelIcon(status) {
+                    const icons = {
+                        'completed': 'bi-check',
+                        'current': 'bi-clock',
+                        'pending': 'bi-circle',
+                        'rejected': 'bi-x'
+                    };
+                    return icons[status] || 'bi-circle';
+                },
+                
+                approveTimesheet(timesheetId) {
+                    this.approvalAction = 'approve';
+                    this.selectedTimesheets = [timesheetId];
+                    this.openApprovalModal();
+                },
+                
+                rejectTimesheet(timesheetId) {
+                    this.approvalAction = 'reject';
+                    this.selectedTimesheets = [timesheetId];
+                    this.openApprovalModal();
+                },
+                
+                bulkApprove() {
+                    this.approvalAction = 'approve';
+                    this.openApprovalModal();
+                },
+                
+                bulkReject() {
+                    this.approvalAction = 'reject';
+                    this.openApprovalModal();
+                },
+                
+                openApprovalModal() {
+                    const modal = new bootstrap.Modal(this.$refs.approvalModal);
+                    modal.show();
+                },
+                
+                executeApprovalAction() {
+                    console.log('承認アクション実行:', {
+                        action: this.approvalAction,
+                        timesheets: this.selectedTimesheets,
+                        comment: this.approvalComment,
+                        notify: this.notifyOptions
+                    });
+                    
+                    alert(`${this.approvalAction === 'approve' ? '承認' : '差し戻し'}を実行しました`);
+                    bootstrap.Modal.getInstance(this.$refs.approvalModal).hide();
+                    this.approvalComment = '';
+                    this.selectedTimesheets = [];
+                },
+                
+                viewDetails(timesheetId) {
+                    if (this.expandedTimesheet === timesheetId) {
+                        this.expandedTimesheet = null;
+                    } else {
+                        this.expandedTimesheet = timesheetId;
+                    }
+                },
+                
+                refreshData() {
+                    console.log('データ更新中...');
+                    // 実際の実装ではAPIコール
+                },
+                
+                exportApprovalData() {
+                    console.log('承認データエクスポート');
+                },
+                
+                openBulkApprovalModal() {
+                    console.log('一括承認モーダル表示');
+                },
+                
+                openDelegationModal() {
+                    console.log('承認委任モーダル表示');
+                },
+                
+                openNotificationSettings() {
+                    console.log('通知設定表示');
+                },
+                
+                filterHistory() {
+                    console.log('履歴フィルター実行:', this.historyFilters);
+                },
+                
+                quickApproveAll() {
+                    if (confirm('すべての承認待ち勤怠表を承認しますか？')) {
+                        console.log('全件承認実行');
+                        alert('全件承認を実行しました');
+                    }
+                },
+                
+                openApprovalSettings() {
+                    console.log('承認設定表示');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

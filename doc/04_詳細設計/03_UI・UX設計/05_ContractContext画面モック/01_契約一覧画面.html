@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>契約一覧 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .contract-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+            border-left: 4px solid transparent;
+        }
+        
+        .contract-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .contract-card.status-draft { border-left-color: var(--ses-secondary); }
+        .contract-card.status-pending_signature { border-left-color: var(--ses-warning); }
+        .contract-card.status-active { border-left-color: var(--ses-success); }
+        .contract-card.status-cancelled { border-left-color: var(--ses-danger); }
+        .contract-card.status-terminated { border-left-color: var(--ses-secondary); }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        .expiry-warning {
+            position: relative;
+        }
+        
+        .expiry-warning::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 8px;
+            height: 8px;
+            background: var(--ses-danger);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .contract-timeline {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .timeline-step {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            background: #f8f9fa;
+        }
+        
+        .timeline-step.completed {
+            background: var(--ses-success);
+            color: white;
+        }
+        
+        .timeline-step.active {
+            background: var(--ses-primary);
+            color: white;
+        }
+        
+        .cloudsign-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            border: 1px solid;
+        }
+        
+        .cloudsign-connected {
+            background: #e8f5e8;
+            border-color: var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .cloudsign-pending {
+            background: #fff3e0;
+            border-color: var(--ses-warning);
+            color: var(--ses-warning);
+        }
+        
+        .cloudsign-error {
+            background: #ffebee;
+            border-color: var(--ses-danger);
+            color: var(--ses-danger);
+        }
+        
+        .quick-action-btn {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .contract-card:hover .quick-action-btn {
+            opacity: 1;
+        }
+        
+        .filter-section {
+            background: var(--ses-light);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+        }
+        
+        .contract-type-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .type-employment_agreement { background: #e3f2fd; color: #1565c0; }
+        .type-subcontract_agreement { background: #f3e5f5; color: #7b1fa2; }
+        .type-consulting_agreement { background: #fff3e0; color: #ef6c00; }
+        .type-dispatch_agreement { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body x-data="contractList" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h1 class="h3 mb-2">契約一覧</h1>
+                    <p class="text-muted mb-0">契約の管理・承認・CloudSign連携・期限監視</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportContracts()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-info" @click="syncCloudSign()">
+                        <i class="bi bi-cloud me-1"></i>CloudSign同期
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-plus me-1"></i>新規契約
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" @click="createContract('EMPLOYMENT_AGREEMENT')">
+                                <i class="bi bi-briefcase me-2"></i>準委任契約
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="createContract('SUBCONTRACT_AGREEMENT')">
+                                <i class="bi bi-person-workspace me-2"></i>請負契約
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="createContract('CONSULTING_AGREEMENT')">
+                                <i class="bi bi-shield-lock me-2"></i>コンサルティング契約
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="createContract('DISPATCH_AGREEMENT')">
+                                <i class="bi bi-gear me-2"></i>派遣契約
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- アラート・通知エリア -->
+            <div x-show="alerts.length > 0" class="mb-4">
+                <template x-for="alert in alerts" :key="alert.id">
+                    <div class="alert alert-dismissible fade show" :class="getAlertClass(alert.type)">
+                        <i class="bi" :class="getAlertIcon(alert.type) + ' me-2'"></i>
+                        <span x-text="alert.message"></span>
+                        <button type="button" class="btn-close" @click="dismissAlert(alert.id)"></button>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- フィルター・検索エリア -->
+            <div class="filter-section">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">契約名・顧客名</label>
+                        <input type="text" class="form-control" placeholder="検索キーワード" x-model="filters.keyword">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">ステータス</label>
+                        <select class="form-select" x-model="filters.status">
+                            <option value="">すべて</option>
+                            <option value="DRAFT">ドラフト</option>
+                            <option value="PENDING_SIGNATURE">署名待ち</option>
+                            <option value="ACTIVE">有効</option>
+                            <option value="CANCELLED">キャンセル</option>
+                            <option value="TERMINATED">終了</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">契約種別</label>
+                        <select class="form-select" x-model="filters.type">
+                            <option value="">すべて</option>
+                            <option value="EMPLOYMENT_AGREEMENT">準委任契約</option>
+                            <option value="SUBCONTRACT_AGREEMENT">請負契約</option>
+                            <option value="CONSULTING_AGREEMENT">コンサルティング契約</option>
+                            <option value="DISPATCH_AGREEMENT">派遣契約</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">期限</label>
+                        <select class="form-select" x-model="filters.expiry">
+                            <option value="">指定なし</option>
+                            <option value="expired">期限切れ</option>
+                            <option value="7days">7日以内</option>
+                            <option value="30days">30日以内</option>
+                            <option value="90days">90日以内</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">CloudSign連携</label>
+                        <select class="form-select" x-model="filters.cloudSignStatus">
+                            <option value="">すべて</option>
+                            <option value="connected">連携済み</option>
+                            <option value="pending">連携待ち</option>
+                            <option value="error">エラー</option>
+                            <option value="none">未連携</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" @click="searchContracts()">
+                                <i class="bi bi-search me-1"></i>検索
+                            </button>
+                            <button class="btn btn-outline-secondary" @click="resetFilters()">
+                                <i class="bi bi-x-circle me-1"></i>リセット
+                            </button>
+                            <button class="btn btn-outline-info" @click="saveFilter()">
+                                <i class="bi bi-bookmark me-1"></i>フィルタ保存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 操作エリア -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted" x-text="`全${totalCount}件中 ${startIndex}-${endIndex}件を表示`"></span>
+                    <div class="form-check" x-show="selectedContracts.length > 0">
+                        <input class="form-check-input" type="checkbox" x-model="selectAll" @change="toggleSelectAll()">
+                        <label class="form-check-label">
+                            全選択 (<span x-text="selectedContracts.length"></span>件選択中)
+                        </label>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" :disabled="selectedContracts.length === 0" @click="bulkExport()">
+                        <i class="bi bi-download me-1"></i>一括エクスポート
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" :disabled="selectedContracts.length === 0" @click="bulkApprove()">
+                        <i class="bi bi-check-circle me-1"></i>一括承認
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-grid me-1"></i>表示
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'card'">
+                                <i class="bi bi-grid-3x3-gap me-2"></i>カード表示
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'table'">
+                                <i class="bi bi-table me-2"></i>テーブル表示
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'timeline'">
+                                <i class="bi bi-clock-history me-2"></i>タイムライン表示
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- カード表示 -->
+            <div x-show="viewMode === 'card'" class="row">
+                <template x-for="contract in filteredContracts" :key="contract.id">
+                    <div class="col-lg-6 col-xl-4 mb-4">
+                        <div class="card contract-card h-100" 
+                             :class="`status-${contract.status.toLowerCase()}`"
+                             @click="viewContract(contract.id)">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="form-check" @click.stop>
+                                    <input class="form-check-input" type="checkbox" 
+                                           :value="contract.id" 
+                                           x-model="selectedContracts">
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge status-badge" :class="getStatusClass(contract.status)" x-text="getStatusText(contract.status)"></span>
+                                    <div x-show="isExpiringSoon(contract.endDate)" class="expiry-warning">
+                                        <i class="bi bi-exclamation-triangle text-danger"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex align-items-start mb-3">
+                                    <div class="contract-type-icon" :class="getTypeIconClass(contract.type)">
+                                        <i class="bi" :class="getTypeIcon(contract.type)"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h5 class="card-title mb-1" x-text="contract.name"></h5>
+                                        <p class="text-muted small mb-0" x-text="getTypeText(contract.type)"></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="small text-muted">顧客・技術者</span>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <img :src="contract.customer.logo" class="rounded me-2" width="24" height="24">
+                                        <span class="small fw-medium" x-text="contract.customer.name"></span>
+                                    </div>
+                                    <div class="d-flex align-items-center mt-1" x-show="contract.engineer">
+                                        <img :src="contract.engineer.avatar" class="rounded-circle me-2" width="24" height="24">
+                                        <span class="small" x-text="contract.engineer.name"></span>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small">
+                                        <span class="text-muted">契約期間</span>
+                                        <span x-text="`${formatDate(contract.startDate)} - ${formatDate(contract.endDate)}`"></span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small" x-show="contract.amount">
+                                        <span class="text-muted">契約金額</span>
+                                        <span class="fw-medium" x-text="formatCurrency(contract.amount)"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- CloudSign連携ステータス -->
+                                <div class="mb-3">
+                                    <div class="cloudsign-status" :class="getCloudSignClass(contract.cloudSignStatus)">
+                                        <i class="bi" :class="getCloudSignIcon(contract.cloudSignStatus)"></i>
+                                        <span x-text="getCloudSignText(contract.cloudSignStatus)"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- 契約進捗タイムライン -->
+                                <div class="contract-timeline">
+                                    <div class="timeline-step" :class="{ completed: contract.progress >= 1, active: contract.progress === 1 }">
+                                        <i class="bi bi-file-earmark"></i>
+                                        <small>作成</small>
+                                    </div>
+                                    <div class="timeline-step" :class="{ completed: contract.progress >= 2, active: contract.progress === 2 }">
+                                        <i class="bi bi-check-circle"></i>
+                                        <small>承認</small>
+                                    </div>
+                                    <div class="timeline-step" :class="{ completed: contract.progress >= 3, active: contract.progress === 3 }">
+                                        <i class="bi bi-pen"></i>
+                                        <small>署名</small>
+                                    </div>
+                                    <div class="timeline-step" :class="{ completed: contract.progress >= 4, active: contract.progress === 4 }">
+                                        <i class="bi bi-shield-check"></i>
+                                        <small>締結</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm flex-fill" @click.stop="viewContract(contract.id)">
+                                        <i class="bi bi-eye me-1"></i>詳細
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm flex-fill" @click.stop="editContract(contract.id)">
+                                        <i class="bi bi-pencil me-1"></i>編集
+                                    </button>
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle quick-action-btn" data-bs-toggle="dropdown" @click.stop>
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="#" @click="sendForApproval(contract.id)">
+                                                <i class="bi bi-send me-2"></i>承認依頼
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" @click="sendToCloudSign(contract.id)">
+                                                <i class="bi bi-cloud me-2"></i>CloudSign送信
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" @click="duplicateContract(contract.id)">
+                                                <i class="bi bi-files me-2"></i>複製
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-danger" href="#" @click="terminateContract(contract.id)">
+                                                <i class="bi bi-x-circle me-2"></i>契約終了
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- テーブル表示 -->
+            <div x-show="viewMode === 'table'" class="card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="50">
+                                    <input type="checkbox" class="form-check-input" x-model="selectAll" @change="toggleSelectAll()">
+                                </th>
+                                <th>契約名</th>
+                                <th>種別</th>
+                                <th>顧客</th>
+                                <th>技術者</th>
+                                <th>ステータス</th>
+                                <th>契約期間</th>
+                                <th>金額</th>
+                                <th>CloudSign</th>
+                                <th>更新日</th>
+                                <th width="120">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="contract in filteredContracts" :key="contract.id">
+                                <tr :class="{ 'table-warning': isExpiringSoon(contract.endDate) }">
+                                    <td>
+                                        <input type="checkbox" class="form-check-input" 
+                                               :value="contract.id" 
+                                               x-model="selectedContracts">
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="contract-type-icon" :class="getTypeIconClass(contract.type)">
+                                                <i class="bi" :class="getTypeIcon(contract.type)"></i>
+                                            </div>
+                                            <div>
+                                                <a href="#" class="text-decoration-none fw-medium" x-text="contract.name" @click="viewContract(contract.id)"></a>
+                                                <div class="small text-muted" x-text="contract.description"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="small" x-text="getTypeText(contract.type)"></span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img :src="contract.customer.logo" class="rounded me-2" width="24" height="24">
+                                            <span x-text="contract.customer.name"></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center" x-show="contract.engineer">
+                                            <img :src="contract.engineer.avatar" class="rounded-circle me-2" width="24" height="24">
+                                            <span x-text="contract.engineer.name"></span>
+                                        </div>
+                                        <span x-show="!contract.engineer" class="text-muted">-</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge status-badge" :class="getStatusClass(contract.status)" x-text="getStatusText(contract.status)"></span>
+                                    </td>
+                                    <td>
+                                        <div class="small">
+                                            <div x-text="formatDate(contract.startDate)"></div>
+                                            <div>〜</div>
+                                            <div x-text="formatDate(contract.endDate)"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span x-show="contract.amount" x-text="formatCurrency(contract.amount)"></span>
+                                        <span x-show="!contract.amount" class="text-muted">-</span>
+                                    </td>
+                                    <td>
+                                        <div class="cloudsign-status" :class="getCloudSignClass(contract.cloudSignStatus)">
+                                            <i class="bi" :class="getCloudSignIcon(contract.cloudSignStatus)"></i>
+                                            <span x-text="getCloudSignText(contract.cloudSignStatus)"></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="small text-muted" x-text="formatDate(contract.updatedAt)"></div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" @click="viewContract(contract.id)" title="詳細">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @click="editContract(contract.id)" title="編集">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <div class="dropdown">
+                                                <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
+                                                    <span class="visually-hidden">詳細メニュー</span>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li><a class="dropdown-item" href="#" @click="sendForApproval(contract.id)">
+                                                        <i class="bi bi-send me-2"></i>承認依頼
+                                                    </a></li>
+                                                    <li><a class="dropdown-item" href="#" @click="sendToCloudSign(contract.id)">
+                                                        <i class="bi bi-cloud me-2"></i>CloudSign送信
+                                                    </a></li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li><a class="dropdown-item text-danger" href="#" @click="terminateContract(contract.id)">
+                                                        <i class="bi bi-x-circle me-2"></i>契約終了
+                                                    </a></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- ページネーション -->
+            <nav class="mt-4" aria-label="ページネーション">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                        <button class="page-link" @click="goToPage(currentPage - 1)">前へ</button>
+                    </li>
+                    <template x-for="page in visiblePages" :key="page">
+                        <li class="page-item" :class="{ active: page === currentPage }">
+                            <button class="page-link" @click="goToPage(page)" x-text="page"></button>
+                        </li>
+                    </template>
+                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                        <button class="page-link" @click="goToPage(currentPage + 1)">次へ</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('contractList', () => ({
+                // データ
+                contracts: [
+                    {
+                        id: 'contract-001',
+                        name: '田中太郎 業務委託契約',
+                        description: 'ECサイト開発プロジェクトの業務委託',
+                        type: 'SUBCONTRACT_AGREEMENT',
+                        status: 'ACTIVE',
+                        progress: 4,
+                        startDate: '2025-04-01',
+                        endDate: '2025-12-31',
+                        amount: 8000000,
+                        customer: { name: '株式会社ABC商事', logo: 'https://via.placeholder.com/24' },
+                        engineer: { name: '田中太郎', avatar: 'https://via.placeholder.com/24' },
+                        cloudSignStatus: 'connected',
+                        updatedAt: '2025-06-01'
+                    },
+                    {
+                        id: 'contract-002',
+                        name: 'XYZ製造 秘密保持契約',
+                        description: '基幹システム更改プロジェクトNDA',
+                        type: 'CONSULTING_AGREEMENT',
+                        status: 'PENDING_SIGNATURE',
+                        progress: 2,
+                        startDate: '2025-06-01',
+                        endDate: '2026-05-31',
+                        amount: null,
+                        customer: { name: 'XYZ製造株式会社', logo: 'https://via.placeholder.com/24' },
+                        engineer: null,
+                        cloudSignStatus: 'pending',
+                        updatedAt: '2025-05-30'
+                    },
+                    {
+                        id: 'contract-003',
+                        name: '佐藤花子 雇用契約',
+                        description: '正社員雇用契約書',
+                        type: 'EMPLOYMENT_AGREEMENT',
+                        status: 'ACTIVE',
+                        progress: 4,
+                        startDate: '2024-04-01',
+                        endDate: '2025-03-31',
+                        amount: 6000000,
+                        customer: { name: '自社', logo: 'https://via.placeholder.com/24' },
+                        engineer: { name: '佐藤花子', avatar: 'https://via.placeholder.com/24' },
+                        cloudSignStatus: 'connected',
+                        updatedAt: '2025-05-28'
+                    }
+                ],
+                
+                // フィルター
+                filters: {
+                    keyword: '',
+                    status: '',
+                    type: '',
+                    expiry: '',
+                    cloudSignStatus: ''
+                },
+                
+                // UI状態
+                selectedContracts: [],
+                selectAll: false,
+                viewMode: 'card',
+                currentPage: 1,
+                pageSize: 12,
+                totalCount: 3,
+                
+                // アラート
+                alerts: [
+                    { id: 1, type: 'warning', message: '3件の契約が7日以内に期限切れになります' },
+                    { id: 2, type: 'info', message: 'CloudSign連携が正常に完了しました' }
+                ],
+                
+                // 計算プロパティ
+                get filteredContracts() {
+                    return this.contracts.filter(contract => {
+                        if (this.filters.keyword && !contract.name.toLowerCase().includes(this.filters.keyword.toLowerCase())) {
+                            return false;
+                        }
+                        if (this.filters.status && contract.status !== this.filters.status) {
+                            return false;
+                        }
+                        if (this.filters.type && contract.type !== this.filters.type) {
+                            return false;
+                        }
+                        if (this.filters.cloudSignStatus && contract.cloudSignStatus !== this.filters.cloudSignStatus) {
+                            return false;
+                        }
+                        return true;
+                    });
+                },
+                
+                get totalPages() {
+                    return Math.ceil(this.totalCount / this.pageSize);
+                },
+                
+                get startIndex() {
+                    return (this.currentPage - 1) * this.pageSize + 1;
+                },
+                
+                get endIndex() {
+                    return Math.min(this.currentPage * this.pageSize, this.totalCount);
+                },
+                
+                get visiblePages() {
+                    const pages = [];
+                    const start = Math.max(1, this.currentPage - 2);
+                    const end = Math.min(this.totalPages, this.currentPage + 2);
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
+                },
+                
+                // メソッド
+                toggleSidebar() {
+                    console.log('サイドバー切り替え');
+                },
+                
+                searchContracts() {
+                    console.log('契約検索実行', this.filters);
+                },
+                
+                resetFilters() {
+                    this.filters = { keyword: '', status: '', type: '', expiry: '', cloudSignStatus: '' };
+                },
+                
+                toggleSelectAll() {
+                    if (this.selectAll) {
+                        this.selectedContracts = this.filteredContracts.map(c => c.id);
+                    } else {
+                        this.selectedContracts = [];
+                    }
+                },
+                
+                createContract(type) {
+                    console.log('新規契約作成', type);
+                },
+                
+                viewContract(id) {
+                    console.log('契約詳細表示', id);
+                },
+                
+                editContract(id) {
+                    console.log('契約編集', id);
+                },
+                
+                sendForApproval(id) {
+                    console.log('承認依頼送信', id);
+                },
+                
+                sendToCloudSign(id) {
+                    console.log('CloudSign送信', id);
+                },
+                
+                duplicateContract(id) {
+                    console.log('契約複製', id);
+                },
+                
+                terminateContract(id) {
+                    if (confirm('この契約を終了しますか？')) {
+                        console.log('契約終了', id);
+                    }
+                },
+                
+                syncCloudSign() {
+                    console.log('CloudSign同期');
+                },
+                
+                dismissAlert(id) {
+                    this.alerts = this.alerts.filter(alert => alert.id !== id);
+                },
+                
+                isExpiringSoon(endDate) {
+                    const end = new Date(endDate);
+                    const now = new Date();
+                    const diffTime = end - now;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays <= 30 && diffDays >= 0;
+                },
+                
+                goToPage(page) {
+                    if (page >= 1 && page <= this.totalPages) {
+                        this.currentPage = page;
+                    }
+                },
+                
+                getStatusClass(status) {
+                    const classes = {
+                        'DRAFT': 'bg-secondary',
+                        'PENDING_SIGNATURE': 'bg-warning',
+                        'ACTIVE': 'bg-success',
+                        'CANCELLED': 'bg-danger',
+                        'TERMINATED': 'bg-dark'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        'DRAFT': 'ドラフト',
+                        'PENDING_SIGNATURE': '署名待ち',
+                        'ACTIVE': '有効',
+                        'CANCELLED': 'キャンセル',
+                        'TERMINATED': '終了'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                getTypeText(type) {
+                    const texts = {
+                        'EMPLOYMENT_AGREEMENT': '準委任契約',
+                        'SUBCONTRACT_AGREEMENT': '請負契約',
+                        'CONSULTING_AGREEMENT': 'コンサルティング契約',
+                        'DISPATCH_AGREEMENT': '派遣契約'
+                    };
+                    return texts[type] || type;
+                },
+                
+                getTypeIcon(type) {
+                    const icons = {
+                        'EMPLOYMENT_AGREEMENT': 'bi-briefcase',
+                        'SUBCONTRACT_AGREEMENT': 'bi-person-workspace',
+                        'CONSULTING_AGREEMENT': 'bi-shield-lock',
+                        'DISPATCH_AGREEMENT': 'bi-gear'
+                    };
+                    return icons[type] || 'bi-file-earmark';
+                },
+                
+                getTypeIconClass(type) {
+                    const classes = {
+                        'EMPLOYMENT_AGREEMENT': 'type-employment_agreement',
+                        'SUBCONTRACT_AGREEMENT': 'type-subcontract_agreement',
+                        'CONSULTING_AGREEMENT': 'type-consulting_agreement',
+                        'DISPATCH_AGREEMENT': 'type-dispatch_agreement'
+                    };
+                    return classes[type] || 'type-employment_agreement';
+                },
+                
+                getCloudSignClass(status) {
+                    const classes = {
+                        'connected': 'cloudsign-connected',
+                        'pending': 'cloudsign-pending',
+                        'error': 'cloudsign-error',
+                        'none': 'cloudsign-pending'
+                    };
+                    return classes[status] || 'cloudsign-pending';
+                },
+                
+                getCloudSignIcon(status) {
+                    const icons = {
+                        'connected': 'bi-cloud-check',
+                        'pending': 'bi-cloud-upload',
+                        'error': 'bi-cloud-slash',
+                        'none': 'bi-cloud'
+                    };
+                    return icons[status] || 'bi-cloud';
+                },
+                
+                getCloudSignText(status) {
+                    const texts = {
+                        'connected': '連携済み',
+                        'pending': '連携待ち',
+                        'error': 'エラー',
+                        'none': '未連携'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                getAlertClass(type) {
+                    const classes = {
+                        'success': 'alert-success',
+                        'info': 'alert-info',
+                        'warning': 'alert-warning',
+                        'danger': 'alert-danger'
+                    };
+                    return classes[type] || 'alert-info';
+                },
+                
+                getAlertIcon(type) {
+                    const icons = {
+                        'success': 'bi-check-circle-fill',
+                        'info': 'bi-info-circle-fill',
+                        'warning': 'bi-exclamation-triangle-fill',
+                        'danger': 'bi-x-circle-fill'
+                    };
+                    return icons[type] || 'bi-info-circle-fill';
+                },
+                
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY'
+                    }).format(amount);
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric'
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
