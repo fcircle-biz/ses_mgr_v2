@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件詳細・編集 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .status-timeline {
+            position: relative;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+            padding-bottom: 1rem;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0.5rem;
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            border: 2px solid #dee2e6;
+            background: white;
+        }
+        
+        .timeline-item.active::before {
+            border-color: var(--ses-primary);
+            background: var(--ses-primary);
+        }
+        
+        .timeline-item.completed::before {
+            border-color: var(--ses-success);
+            background: var(--ses-success);
+        }
+        
+        .timeline-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 0.875rem;
+            top: 1.25rem;
+            width: 2px;
+            height: calc(100% - 0.75rem);
+            background: #dee2e6;
+        }
+        
+        .skill-tag {
+            display: inline-block;
+            background: #e9ecef;
+            color: #495057;
+            padding: 0.25rem 0.5rem;
+            margin: 0.125rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        
+        .activity-item {
+            border-left: 3px solid #dee2e6;
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .activity-item.important {
+            border-left-color: var(--ses-warning);
+        }
+    </style>
+</head>
+<body x-data="projectDetail" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">案件管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">案件詳細</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2" x-text="project.name">ECサイトリニューアル</h1>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="badge bg-primary" x-text="getStatusText(project.status)">進行中</span>
+                        <span class="text-muted" x-text="project.customer.name">株式会社ABC商事</span>
+                        <span class="text-muted">•</span>
+                        <span class="text-muted" x-text="`担当: ${project.salesRep.name}`">担当: 田中営業</span>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportProject()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-warning" @click="toggleEditMode()" x-show="!editMode">
+                        <i class="bi bi-pencil me-1"></i>編集
+                    </button>
+                    <template x-if="editMode">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary" @click="cancelEdit()">
+                                <i class="bi bi-x me-1"></i>キャンセル
+                            </button>
+                            <button class="btn btn-primary" @click="saveProject()">
+                                <i class="bi bi-check me-1"></i>保存
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-4" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#basic-info" role="tab">
+                        <i class="bi bi-info-circle me-1"></i>基本情報
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#requirements" role="tab">
+                        <i class="bi bi-list-check me-1"></i>要件・スキル
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#timeline" role="tab">
+                        <i class="bi bi-clock-history me-1"></i>進捗・履歴
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#members" role="tab">
+                        <i class="bi bi-people me-1"></i>アサイン
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#files" role="tab">
+                        <i class="bi bi-files me-1"></i>ファイル
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content">
+                <!-- 基本情報タブ -->
+                <div class="tab-pane fade show active" id="basic-info" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-briefcase me-2"></i>案件基本情報
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label">案件名 <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" x-model="editData.name" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label">案件概要</label>
+                                            <textarea class="form-control" rows="3" x-model="editData.description" :readonly="!editMode"></textarea>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">ステータス</label>
+                                            <select class="form-select" x-model="editData.status" :disabled="!editMode">
+                                                <option value="INQUIRY">問い合わせ</option>
+                                                <option value="NEGOTIATING">交渉中</option>
+                                                <option value="PROPOSING">提案作成中</option>
+                                                <option value="PROPOSAL_SUBMITTED">提案提出済</option>
+                                                <option value="ORDERED">受注</option>
+                                                <option value="CANCELLED">キャンセル</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">提案期限 <span class="text-danger">*</span></label>
+                                            <input type="datetime-local" class="form-control" x-model="editData.proposalDeadline" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">開始予定日</label>
+                                            <input type="date" class="form-control" x-model="editData.period.estimatedStartDate" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">終了予定日</label>
+                                            <input type="date" class="form-control" x-model="editData.period.estimatedEndDate" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">期間（ヶ月）</label>
+                                            <input type="number" class="form-control" x-model="editData.period.estimatedDurationMonths" :readonly="!editMode" min="1">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">予算下限</label>
+                                            <input type="number" class="form-control" x-model="editData.budget.minAmount" :readonly="!editMode" min="0">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">予算上限</label>
+                                            <input type="number" class="form-control" x-model="editData.budget.maxAmount" :readonly="!editMode" min="0">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">通貨</label>
+                                            <select class="form-select" x-model="editData.budget.currency" :disabled="!editMode">
+                                                <option value="JPY">日本円</option>
+                                                <option value="USD">米ドル</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 顧客情報 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-building me-2"></i>顧客情報
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">顧客ID <span class="text-danger">*</span></label>
+                                            <select class="form-select" x-model="editData.customerId" :disabled="!editMode">
+                                                <option value="customer-001">customer-001</option>
+                                                <option value="customer-002">customer-002</option>
+                                                <option value="customer-003">customer-003</option>
+                                                <option value="customer-004">customer-004</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">顧客名</label>
+                                            <input type="text" class="form-control" x-model="editData.customerName" :readonly="true">
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label">バージョン <span class="text-muted">(楽観的ロック用)</span></label>
+                                            <input type="number" class="form-control" x-model="editData.version" :readonly="true">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- ステータス履歴 -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-clock me-2"></i>ステータス履歴
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="status-timeline">
+                                        <template x-for="history in project.statusHistory" :key="history.id">
+                                            <div class="timeline-item" :class="{ 'completed': history.completed, 'active': history.current }">
+                                                <div class="fw-medium" x-text="history.status"></div>
+                                                <div class="text-muted small" x-text="formatDateTime(history.changedAt)"></div>
+                                                <div class="text-muted small" x-text="history.changedBy"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 提案期限情報 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-calendar-event me-2"></i>提案情報
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">提案期限</label>
+                                        <div class="fw-medium" x-text="formatDateTime(project.proposalDeadline)"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">作成日時</label>
+                                        <div class="text-muted small" x-text="formatDateTime(project.createdAt)"></div>
+                                    </div>
+                                    <div>
+                                        <label class="form-label">更新日時</label>
+                                        <div class="text-muted small" x-text="formatDateTime(project.updatedAt)"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 要件・スキルタブ -->
+                <div class="tab-pane fade" id="requirements" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-list-check me-2"></i>技術要件
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-4">
+                                        <label class="form-label">要件説明</label>
+                                        <textarea class="form-control" rows="3" x-model="editData.requirement.description" :readonly="!editMode" placeholder="プロジェクトの詳細要件を記述..."></textarea>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label">必要スキル</label>
+                                        <template x-if="!editMode">
+                                            <div>
+                                                <template x-for="skill in project.requirement.requiredSkills" :key="skill">
+                                                    <span class="skill-tag" x-text="skill"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editMode">
+                                            <input type="text" class="form-control" x-model="editData.requirement.requiredSkillsText" 
+                                                   placeholder="Java, Python, React (カンマ区切り)">
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label">経験レベル</label>
+                                        <select class="form-select" x-model="editData.requirement.experienceLevel" :disabled="!editMode">
+                                            <option value="JUNIOR">ジュニア (1-2年)</option>
+                                            <option value="MIDDLE">ミドル (3-5年)</option>
+                                            <option value="SENIOR">シニア (5-10年)</option>
+                                            <option value="EXPERT">エキスパート (10年以上)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label">作業場所</label>
+                                        <select class="form-select" x-model="editData.requirement.workLocation" :disabled="!editMode">
+                                            <option value="REMOTE">リモート</option>
+                                            <option value="CLIENT_SITE">客先常駐</option>
+                                            <option value="HYBRID">ハイブリッド</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label">チームサイズ</label>
+                                        <input type="number" class="form-control" x-model="editData.requirement.teamSize" :readonly="!editMode" min="1" placeholder="人数">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="form-label">特別要件</label>
+                                        <template x-if="!editMode">
+                                            <div>
+                                                <template x-for="req in project.requirement.specialRequirements" :key="req">
+                                                    <span class="badge bg-light text-dark me-1 mb-1" x-text="req"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editMode">
+                                            <input type="text" class="form-control" x-model="editData.requirement.specialRequirementsText" 
+                                                   placeholder="24時間365日対応, セキュリティ要件 (カンマ区切り)">
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-graph-up me-2"></i>マッチング統計
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-center mb-3">
+                                        <div class="h4 text-primary mb-0">42%</div>
+                                        <div class="text-muted small">マッチング率</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between small">
+                                            <span>候補者数</span>
+                                            <span class="fw-medium">156名</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small">
+                                            <span>適合者数</span>
+                                            <span class="fw-medium">65名</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small">
+                                            <span>提案済み</span>
+                                            <span class="fw-medium">12名</span>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-primary btn-sm w-100">
+                                        <i class="bi bi-search me-1"></i>マッチング実行
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 進捗・履歴タブ -->
+                <div class="tab-pane fade" id="timeline" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history me-2"></i>活動履歴
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <template x-for="activity in project.activities" :key="activity.id">
+                                <div class="activity-item" :class="{ 'important': activity.important }">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <div class="fw-medium" x-text="activity.title"></div>
+                                            <div class="text-muted small" x-text="activity.description"></div>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="small text-muted" x-text="formatDateTime(activity.createdAt)"></div>
+                                            <div class="small text-muted" x-text="activity.user"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- アサインタブ -->
+                <div class="tab-pane fade" id="members" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-people me-2"></i>アサイン済み技術者
+                            </h5>
+                            <button class="btn btn-primary btn-sm" x-show="editMode">
+                                <i class="bi bi-plus me-1"></i>技術者追加
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>技術者名</th>
+                                            <th>役割</th>
+                                            <th>スキル</th>
+                                            <th>稼働率</th>
+                                            <th>ステータス</th>
+                                            <th x-show="editMode">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="member in project.assignedMembers" :key="member.id">
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <img :src="member.avatar" class="rounded-circle me-2" width="24" height="24">
+                                                        <span x-text="member.name"></span>
+                                                    </div>
+                                                </td>
+                                                <td x-text="member.role"></td>
+                                                <td>
+                                                    <template x-for="skill in member.topSkills" :key="skill">
+                                                        <span class="badge bg-light text-dark me-1" x-text="skill"></span>
+                                                    </template>
+                                                </td>
+                                                <td x-text="`${member.workload}%`"></td>
+                                                <td>
+                                                    <span class="badge" :class="member.status === 'ACTIVE' ? 'bg-success' : 'bg-secondary'" 
+                                                          x-text="member.status === 'ACTIVE' ? '稼働中' : '待機中'"></span>
+                                                </td>
+                                                <td x-show="editMode">
+                                                    <button class="btn btn-outline-danger btn-sm">
+                                                        <i class="bi bi-x"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ファイルタブ -->
+                <div class="tab-pane fade" id="files" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-files me-2"></i>添付ファイル
+                            </h5>
+                            <button class="btn btn-primary btn-sm" x-show="editMode">
+                                <i class="bi bi-upload me-1"></i>ファイル追加
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>ファイル名</th>
+                                            <th>タイプ</th>
+                                            <th>サイズ</th>
+                                            <th>アップロード日</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="file in project.attachments" :key="file.id">
+                                            <tr>
+                                                <td>
+                                                    <i class="bi bi-file-earmark me-2"></i>
+                                                    <span x-text="file.name"></span>
+                                                </td>
+                                                <td x-text="file.type"></td>
+                                                <td x-text="file.size"></td>
+                                                <td x-text="formatDate(file.uploadedAt)"></td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-outline-primary">
+                                                            <i class="bi bi-download"></i>
+                                                        </button>
+                                                        <button class="btn btn-outline-danger" x-show="editMode">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('projectDetail', () => ({
+                editMode: false,
+                
+                project: {
+                    id: '123e4567-e89b-12d3-a456-426614174000',
+                    name: 'ECサイトリニューアル',
+                    customerId: 'customer-001',
+                    customerName: '株式会社ABC商事',
+                    status: 'ORDERED',
+                    requirement: {
+                        description: 'ECサイトの全面リニューアル。モバイル対応とパフォーマンス向上を重視。',
+                        requiredSkills: ['React', 'Node.js', 'AWS', 'PostgreSQL'],
+                        experienceLevel: 'SENIOR',
+                        workLocation: 'HYBRID',
+                        teamSize: 5,
+                        specialRequirements: ['モバイル最適化', 'SEO対応', '24時間無停止運用']
+                    },
+                    period: {
+                        estimatedStartDate: '2025-04-01',
+                        estimatedEndDate: '2025-09-30',
+                        estimatedDurationMonths: 6
+                    },
+                    budget: {
+                        minAmount: 7000000,
+                        maxAmount: 9000000,
+                        currency: 'JPY'
+                    },
+                    proposalDeadline: '2025-03-15T23:59:59Z',
+                    createdAt: '2025-01-15T10:00:00Z',
+                    updatedAt: '2025-06-01T15:30:00Z',
+                    version: 1,
+                    statusHistory: [
+                        { id: 1, status: '問い合わせ', changedAt: '2025-01-15T10:00:00', changedBy: '田中営業', completed: true },
+                        { id: 2, status: '交渉中', changedAt: '2025-02-01T14:30:00', changedBy: '田中営業', completed: true },
+                        { id: 3, status: '提案作成中', changedAt: '2025-02-15T09:00:00', changedBy: '田中営業', completed: true },
+                        { id: 4, status: '提案提出済', changedAt: '2025-03-01T09:00:00', changedBy: '田中営業', completed: true },
+                        { id: 5, status: '受注', changedAt: '2025-04-01T09:00:00', changedBy: '田中営業', current: true }
+                    ],
+                    activities: [
+                        { id: 1, title: '提案書提出', description: '顧客への提案書を提出しました', createdAt: '2025-03-01T10:00:00', user: '田中営業', important: true },
+                        { id: 2, title: '受注決定', description: '顧客から正式な受注連絡を受領', createdAt: '2025-04-01T15:00:00', user: '田中営業', important: true }
+                    ]
+                },
+                
+                editData: {},
+                
+                init() {
+                    this.editData = JSON.parse(JSON.stringify(this.project));
+                    this.editData.requirement.requiredSkillsText = this.project.requirement.requiredSkills.join(', ');
+                    this.editData.requirement.specialRequirementsText = this.project.requirement.specialRequirements.join(', ');
+                },
+                
+                toggleEditMode() {
+                    this.editMode = !this.editMode;
+                    if (this.editMode) {
+                        this.editData = JSON.parse(JSON.stringify(this.project));
+                        this.editData.requirement.requiredSkillsText = this.project.requirement.requiredSkills.join(', ');
+                        this.editData.requirement.specialRequirementsText = this.project.requirement.specialRequirements.join(', ');
+                    }
+                },
+                
+                cancelEdit() {
+                    this.editMode = false;
+                    this.editData = JSON.parse(JSON.stringify(this.project));
+                },
+                
+                saveProject() {
+                    // スキルの文字列を配列に変換
+                    this.editData.requirement.requiredSkills = this.editData.requirement.requiredSkillsText.split(',').map(s => s.trim()).filter(s => s);
+                    this.editData.requirement.specialRequirements = this.editData.requirement.specialRequirementsText.split(',').map(s => s.trim()).filter(s => s);
+                    
+                    // バージョンをインクリメント
+                    this.editData.version = this.project.version + 1;
+                    
+                    // 更新日時を設定
+                    this.editData.updatedAt = new Date().toISOString();
+                    
+                    // 実際の保存処理
+                    console.log('保存データ:', this.editData);
+                    
+                    // プロジェクトデータを更新
+                    this.project = JSON.parse(JSON.stringify(this.editData));
+                    this.editMode = false;
+                    
+                    // 成功メッセージ表示
+                    alert('案件情報を保存しました。');
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        'INQUIRY': '問い合わせ',
+                        'NEGOTIATING': '交渉中',
+                        'PROPOSING': '提案作成中',
+                        'PROPOSAL_SUBMITTED': '提案提出済',
+                        'ORDERED': '受注',
+                        'CANCELLED': 'キャンセル'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                },
+                
+                formatDateTime(dateStr) {
+                    return new Date(dateStr).toLocaleString('ja-JP');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

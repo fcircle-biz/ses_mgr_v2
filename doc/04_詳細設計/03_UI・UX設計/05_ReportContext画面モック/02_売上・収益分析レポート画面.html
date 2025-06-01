@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>売上・収益分析レポート - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+            --ses-dark: #212529;
+            --revenue-color: #667eea;
+            --profit-color: #f093fb;
+            --cost-color: #ff6b6b;
+            --forecast-color: #4ecdc4;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+            background: #f8f9fa;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .revenue-header {
+            background: linear-gradient(135deg, var(--revenue-color), #764ba2);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .revenue-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 300px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+        
+        .revenue-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .revenue-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s;
+        }
+        
+        .revenue-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .revenue-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .revenue-label {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+        }
+        
+        .revenue-change {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .analysis-filters {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .chart-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--ses-dark);
+        }
+        
+        .chart-canvas {
+            height: 400px;
+            position: relative;
+        }
+        
+        .chart-canvas.large {
+            height: 500px;
+        }
+        
+        .chart-canvas.small {
+            height: 300px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-box {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--ses-primary), var(--ses-info));
+        }
+        
+        .metric-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+            color: white;
+        }
+        
+        .metric-icon.revenue { background: linear-gradient(135deg, var(--revenue-color), #764ba2); }
+        .metric-icon.profit { background: linear-gradient(135deg, var(--profit-color), #f5576c); }
+        .metric-icon.margin { background: linear-gradient(135deg, var(--ses-success), #38f9d7); }
+        .metric-icon.growth { background: linear-gradient(135deg, var(--forecast-color), #44a08d); }
+        
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: var(--ses-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--ses-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .metric-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .metric-trend.positive {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--ses-success);
+        }
+        
+        .metric-trend.negative {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+        }
+        
+        .metric-trend.neutral {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--ses-secondary);
+        }
+        
+        .forecast-section {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .forecast-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .forecast-period {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+        
+        .forecast-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .forecast-confidence {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
+        .breakdown-table {
+            background: white;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .table-header {
+            background: var(--ses-light);
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .table th {
+            background: var(--ses-light);
+            border: none;
+            font-weight: 600;
+            padding: 1rem;
+            color: var(--ses-dark);
+        }
+        
+        .table td {
+            border: none;
+            padding: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .progress-bar-container {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.8s ease;
+        }
+        
+        .progress-bar-fill.revenue { background: linear-gradient(90deg, var(--revenue-color), #764ba2); }
+        .progress-bar-fill.profit { background: linear-gradient(90deg, var(--profit-color), #f5576c); }
+        .progress-bar-fill.cost { background: linear-gradient(90deg, var(--cost-color), #ee5a52); }
+        
+        .period-comparison {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .comparison-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        
+        .comparison-period {
+            text-align: center;
+            padding: 1.5rem;
+            border: 2px solid #e9ecef;
+            border-radius: 1rem;
+        }
+        
+        .comparison-period.current {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .comparison-period.previous {
+            border-color: var(--ses-secondary);
+            background: rgba(108, 117, 125, 0.05);
+        }
+        
+        .period-label {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--ses-dark);
+        }
+        
+        .period-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        
+        .period-value.current { color: var(--ses-primary); }
+        .period-value.previous { color: var(--ses-secondary); }
+        
+        .period-details {
+            display: grid;
+            gap: 0.5rem;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        
+        .export-controls {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .floating-actions {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        
+        .floating-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+            margin-bottom: 0.5rem;
+            border: none;
+            transition: all 0.3s;
+        }
+        
+        .floating-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .revenue-summary {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .metrics-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .chart-canvas {
+                height: 300px;
+            }
+            .revenue-value {
+                font-size: 2rem;
+            }
+            .metric-value {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body x-data="revenueAnalysis" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>管理者 田中
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            
+            <!-- 売上・収益ヘッダー -->
+            <div class="revenue-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="h2 mb-2">💰 売上・収益分析レポート</h1>
+                        <p class="mb-0 opacity-75">財務パフォーマンスと収益性の詳細分析</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="small opacity-75">分析期間</div>
+                        <div class="h5 mb-1" x-text="analysisConfig.period"></div>
+                        <div class="small opacity-75">最終更新: <span x-text="lastUpdated"></span></div>
+                    </div>
+                </div>
+                
+                <!-- 売上サマリー -->
+                <div class="revenue-summary">
+                    <div class="revenue-card">
+                        <div class="revenue-value" x-text="formatCurrency(summary.totalRevenue)"></div>
+                        <div class="revenue-label">総売上</div>
+                        <div class="revenue-change">
+                            <i class="bi" :class="summary.revenueTrend.icon"></i>
+                            <span x-text="summary.revenueTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="revenue-card">
+                        <div class="revenue-value" x-text="formatCurrency(summary.grossProfit)"></div>
+                        <div class="revenue-label">売上総利益</div>
+                        <div class="revenue-change">
+                            <i class="bi" :class="summary.profitTrend.icon"></i>
+                            <span x-text="summary.profitTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="revenue-card">
+                        <div class="revenue-value" x-text="summary.profitMargin + '%'"></div>
+                        <div class="revenue-label">利益率</div>
+                        <div class="revenue-change">
+                            <i class="bi" :class="summary.marginTrend.icon"></i>
+                            <span x-text="summary.marginTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="revenue-card">
+                        <div class="revenue-value" x-text="summary.growthRate + '%'"></div>
+                        <div class="revenue-label">成長率</div>
+                        <div class="revenue-change">
+                            <i class="bi" :class="summary.growthTrend.icon"></i>
+                            <span x-text="summary.growthTrend.text"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 分析フィルター -->
+            <div class="analysis-filters">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-3">
+                        <label class="form-label">分析期間</label>
+                        <select class="form-select" x-model="filters.period" @change="updateAnalysis()">
+                            <option value="month">月次</option>
+                            <option value="quarter">四半期</option>
+                            <option value="year">年次</option>
+                            <option value="custom">カスタム</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">比較対象</label>
+                        <select class="form-select" x-model="filters.comparison">
+                            <option value="previous">前期比</option>
+                            <option value="same_last_year">前年同期比</option>
+                            <option value="budget">予算比</option>
+                            <option value="none">比較なし</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">セグメント</label>
+                        <select class="form-select" x-model="filters.segment">
+                            <option value="all">全体</option>
+                            <option value="project">プロジェクト別</option>
+                            <option value="client">顧客別</option>
+                            <option value="technology">技術領域別</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary" @click="resetFilters()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>リセット
+                            </button>
+                            <button class="btn btn-primary" @click="applyFilters()">
+                                <i class="bi bi-search me-1"></i>分析実行
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 主要指標 -->
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-icon revenue">
+                        <i class="bi bi-currency-yen"></i>
+                    </div>
+                    <div class="metric-value" x-text="formatCurrency(metrics.monthlyRevenue)"></div>
+                    <div class="metric-label">月間売上</div>
+                    <div class="metric-trend positive">
+                        <i class="bi bi-arrow-up"></i>
+                        前月比 +15.2%
+                    </div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-icon profit">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                    <div class="metric-value" x-text="formatCurrency(metrics.monthlyProfit)"></div>
+                    <div class="metric-label">月間利益</div>
+                    <div class="metric-trend positive">
+                        <i class="bi bi-arrow-up"></i>
+                        前月比 +18.7%
+                    </div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-icon margin">
+                        <i class="bi bi-percent"></i>
+                    </div>
+                    <div class="metric-value" x-text="metrics.marginRate + '%'"></div>
+                    <div class="metric-label">利益率</div>
+                    <div class="metric-trend positive">
+                        <i class="bi bi-arrow-up"></i>
+                        前月比 +2.1pp
+                    </div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-icon growth">
+                        <i class="bi bi-trending-up"></i>
+                    </div>
+                    <div class="metric-value" x-text="metrics.growthRate + '%'"></div>
+                    <div class="metric-label">年成長率</div>
+                    <div class="metric-trend positive">
+                        <i class="bi bi-arrow-up"></i>
+                        前年比 +22.8%
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 売上推移チャート -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">売上・利益推移</h3>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" @click="changeChartType('line')">
+                            線グラフ
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" @click="changeChartType('bar')">
+                            棒グラフ
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" @click="exportChart('revenue')">
+                            <i class="bi bi-download me-1"></i>エクスポート
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-canvas large">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- 期間比較 -->
+            <div class="period-comparison">
+                <div class="comparison-header">
+                    <h3>期間比較分析</h3>
+                    <p class="text-muted">現在期間と前期間の主要指標比較</p>
+                </div>
+                <div class="comparison-grid">
+                    <div class="comparison-period current">
+                        <div class="period-label">現在期間 (2025年6月)</div>
+                        <div class="period-value current" x-text="formatCurrency(comparison.current.revenue)"></div>
+                        <div class="period-details">
+                            <div class="detail-row">
+                                <span>売上総利益:</span>
+                                <span x-text="formatCurrency(comparison.current.grossProfit)"></span>
+                            </div>
+                            <div class="detail-row">
+                                <span>営業利益:</span>
+                                <span x-text="formatCurrency(comparison.current.operatingProfit)"></span>
+                            </div>
+                            <div class="detail-row">
+                                <span>利益率:</span>
+                                <span x-text="comparison.current.profitMargin + '%'"></span>
+                            </div>
+                            <div class="detail-row">
+                                <span>案件数:</span>
+                                <span x-text="comparison.current.projectCount + '件'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="comparison-period previous">
+                        <div class="period-label">前期間 (2025年5月)</div>
+                        <div class="period-value previous" x-text="formatCurrency(comparison.previous.revenue)"></div>
+                        <div class="period-details">
+                            <div class="detail-row">
+                                <span>売上総利益:</span>
+                                <span x-text="formatCurrency(comparison.previous.grossProfit)"></span>
+                            </div>
+                            <div class="detail-row">
+                                <span>営業利益:</span>
+                                <span x-text="formatCurrency(comparison.previous.operatingProfit)"></span>
+                            </div>
+                            <div class="detail-row">
+                                <span>利益率:</span>
+                                <span x-text="comparison.previous.profitMargin + '%'"></span>
+                            </div>
+                            <div class="detail-row">
+                                <span>案件数:</span>
+                                <span x-text="comparison.previous.projectCount + '件'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 収益予測 -->
+            <div class="forecast-section">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h3 class="mb-2">収益予測</h3>
+                        <p class="mb-0 opacity-75">機械学習モデルによる今後3ヶ月の予測</p>
+                    </div>
+                    <div class="text-end">
+                        <small class="opacity-75">予測モデル: ARIMA + トレンド分析</small><br>
+                        <small class="opacity-75">最終更新: 2025年6月1日</small>
+                    </div>
+                </div>
+                <div class="forecast-grid">
+                    <template x-for="forecast in forecasts" :key="forecast.period">
+                        <div class="forecast-item">
+                            <div class="forecast-period" x-text="forecast.period"></div>
+                            <div class="forecast-value" x-text="formatCurrency(forecast.revenue)"></div>
+                            <div class="forecast-confidence">
+                                信頼度: <span x-text="forecast.confidence + '%'"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- セグメント別分析 -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">セグメント別売上構成</h3>
+                            <div class="d-flex gap-2">
+                                <select class="form-select form-select-sm" x-model="segmentView">
+                                    <option value="project">プロジェクト別</option>
+                                    <option value="client">顧客別</option>
+                                    <option value="technology">技術別</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-canvas">
+                            <canvas id="segmentChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="breakdown-table">
+                        <div class="table-header">
+                            <h5 class="mb-0">売上内訳</h5>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>項目</th>
+                                        <th>金額</th>
+                                        <th>構成比</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="item in breakdown" :key="item.name">
+                                        <tr>
+                                            <td x-text="item.name"></td>
+                                            <td x-text="formatCurrency(item.amount)"></td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span x-text="item.percentage + '%'"></span>
+                                                    <div class="progress-bar-container flex-grow-1">
+                                                        <div class="progress-bar-fill revenue" 
+                                                             :style="`width: ${item.percentage}%`"></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- エクスポートコントロール -->
+            <div class="export-controls">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">レポートエクスポート</h5>
+                        <small class="text-muted">分析結果を様々な形式でエクスポート</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary" @click="exportData('csv')">
+                            <i class="bi bi-filetype-csv me-1"></i>CSV
+                        </button>
+                        <button class="btn btn-outline-secondary" @click="exportData('excel')">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                        </button>
+                        <button class="btn btn-outline-primary" @click="exportData('pdf')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+                        </button>
+                        <button class="btn btn-primary" @click="scheduleReport()">
+                            <i class="bi bi-calendar-plus me-1"></i>定期配信設定
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- フローティングアクション -->
+    <div class="floating-actions">
+        <button class="btn btn-success floating-button" @click="createCustomReport()" title="カスタムレポート作成">
+            <i class="bi bi-plus"></i>
+        </button>
+        <button class="btn btn-primary floating-button" @click="refreshData()" title="データ更新">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('revenueAnalysis', () => ({
+                lastUpdated: '15:30',
+                segmentView: 'project',
+                
+                analysisConfig: {
+                    period: '2025年6月'
+                },
+                
+                filters: {
+                    period: 'month',
+                    comparison: 'previous',
+                    segment: 'all'
+                },
+                
+                summary: {
+                    totalRevenue: 85000000,
+                    revenueTrend: { icon: 'bi-arrow-up', text: '+15.2%' },
+                    grossProfit: 25500000,
+                    profitTrend: { icon: 'bi-arrow-up', text: '+18.7%' },
+                    profitMargin: 30.0,
+                    marginTrend: { icon: 'bi-arrow-up', text: '+2.1pp' },
+                    growthRate: 22.8,
+                    growthTrend: { icon: 'bi-arrow-up', text: '+5.3pp' }
+                },
+                
+                metrics: {
+                    monthlyRevenue: 85000000,
+                    monthlyProfit: 25500000,
+                    marginRate: 30.0,
+                    growthRate: 22.8
+                },
+                
+                comparison: {
+                    current: {
+                        revenue: 85000000,
+                        grossProfit: 25500000,
+                        operatingProfit: 15300000,
+                        profitMargin: 30.0,
+                        projectCount: 28
+                    },
+                    previous: {
+                        revenue: 73800000,
+                        grossProfit: 21500000,
+                        operatingProfit: 12900000,
+                        profitMargin: 29.1,
+                        projectCount: 25
+                    }
+                },
+                
+                forecasts: [
+                    {
+                        period: '2025年7月',
+                        revenue: 88500000,
+                        confidence: 87
+                    },
+                    {
+                        period: '2025年8月',
+                        revenue: 92100000,
+                        confidence: 82
+                    },
+                    {
+                        period: '2025年9月',
+                        revenue: 89600000,
+                        confidence: 78
+                    }
+                ],
+                
+                breakdown: [
+                    {
+                        name: 'Webシステム開発',
+                        amount: 35000000,
+                        percentage: 41.2
+                    },
+                    {
+                        name: 'モバイルアプリ開発',
+                        amount: 22000000,
+                        percentage: 25.9
+                    },
+                    {
+                        name: 'AI・機械学習',
+                        amount: 15000000,
+                        percentage: 17.6
+                    },
+                    {
+                        name: 'インフラ構築',
+                        amount: 8000000,
+                        percentage: 9.4
+                    },
+                    {
+                        name: 'その他',
+                        amount: 5000000,
+                        percentage: 5.9
+                    }
+                ],
+                
+                init() {
+                    this.initializeCharts();
+                },
+                
+                formatCurrency(value) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY',
+                        minimumFractionDigits: 0
+                    }).format(value);
+                },
+                
+                updateAnalysis() {
+                    console.log('分析更新:', this.filters);
+                    this.refreshData();
+                },
+                
+                resetFilters() {
+                    this.filters = {
+                        period: 'month',
+                        comparison: 'previous',
+                        segment: 'all'
+                    };
+                },
+                
+                applyFilters() {
+                    console.log('フィルター適用:', this.filters);
+                    this.refreshData();
+                },
+                
+                changeChartType(type) {
+                    console.log('チャートタイプ変更:', type);
+                },
+                
+                exportChart(chartId) {
+                    console.log('チャートエクスポート:', chartId);
+                },
+                
+                exportData(format) {
+                    console.log('データエクスポート:', format);
+                },
+                
+                scheduleReport() {
+                    console.log('定期配信設定');
+                },
+                
+                createCustomReport() {
+                    console.log('カスタムレポート作成');
+                },
+                
+                refreshData() {
+                    console.log('データ更新中...');
+                    this.lastUpdated = new Date().toLocaleTimeString('ja-JP', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                },
+                
+                initializeCharts() {
+                    this.$nextTick(() => {
+                        this.createRevenueChart();
+                        this.createSegmentChart();
+                    });
+                },
+                
+                createRevenueChart() {
+                    const ctx = document.getElementById('revenueChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '売上',
+                                data: [65000000, 72000000, 68000000, 75000000, 73800000, 85000000],
+                                borderColor: '#667eea',
+                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                yAxisID: 'y'
+                            }, {
+                                label: '利益',
+                                data: [19500000, 21600000, 20400000, 22500000, 21500000, 25500000],
+                                borderColor: '#f093fb',
+                                backgroundColor: 'rgba(240, 147, 251, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                yAxisID: 'y'
+                            }, {
+                                label: '利益率',
+                                data: [30.0, 30.0, 30.0, 30.0, 29.1, 30.0],
+                                borderColor: '#4ecdc4',
+                                backgroundColor: 'transparent',
+                                type: 'line',
+                                yAxisID: 'y1'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                mode: 'index',
+                                intersect: false,
+                            },
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'left',
+                                    ticks: {
+                                        callback: function(value) {
+                                            return (value / 1000000) + 'M円';
+                                        }
+                                    }
+                                },
+                                y1: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'right',
+                                    grid: {
+                                        drawOnChartArea: false,
+                                    },
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createSegmentChart() {
+                    const ctx = document.getElementById('segmentChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: this.breakdown.map(item => item.name),
+                            datasets: [{
+                                data: this.breakdown.map(item => item.amount),
+                                backgroundColor: [
+                                    '#667eea',
+                                    '#f093fb',
+                                    '#4ecdc4',
+                                    '#ff6b6b',
+                                    '#ffd93d'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.raw;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            return `${label}: ${(value / 1000000).toFixed(1)}M円 (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

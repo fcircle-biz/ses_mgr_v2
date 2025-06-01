@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>契約詳細・条件確認 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .contract-header {
+            background: linear-gradient(135deg, var(--ses-primary), #0056b3);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.375rem;
+            margin-bottom: 2rem;
+        }
+        
+        .status-badge {
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+        }
+        
+        .approval-progress {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2rem 0;
+        }
+        
+        .approval-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            flex: 1;
+        }
+        
+        .step-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e9ecef;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            position: relative;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+        
+        .approval-step.completed .step-indicator {
+            background: var(--ses-success);
+            color: white;
+        }
+        
+        .approval-step.active .step-indicator {
+            background: var(--ses-primary);
+            color: white;
+        }
+        
+        .step-label {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            text-align: center;
+            color: #6c757d;
+        }
+        
+        .approval-step.completed .step-label {
+            color: var(--ses-success);
+            font-weight: 500;
+        }
+        
+        .approval-step.active .step-label {
+            color: var(--ses-primary);
+            font-weight: 500;
+        }
+        
+        .approval-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background: #e9ecef;
+            z-index: 1;
+        }
+        
+        .approval-step.completed:not(:last-child)::after {
+            background: var(--ses-success);
+        }
+        
+        .cloudsign-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+        
+        .cloudsign-connected {
+            background: #e8f5e8;
+            border: 1px solid var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .cloudsign-pending {
+            background: #fff3e0;
+            border: 1px solid var(--ses-warning);
+            color: var(--ses-warning);
+        }
+        
+        .cloudsign-error {
+            background: #ffebee;
+            border: 1px solid var(--ses-danger);
+            color: var(--ses-danger);
+        }
+        
+        .contract-content {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+            padding-bottom: 1.5rem;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0.5rem;
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            border: 2px solid var(--ses-primary);
+            background: white;
+        }
+        
+        .timeline-item.completed::before {
+            background: var(--ses-success);
+            border-color: var(--ses-success);
+        }
+        
+        .timeline-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 0.875rem;
+            top: 1.25rem;
+            width: 2px;
+            height: calc(100% - 0.75rem);
+            background: #dee2e6;
+        }
+        
+        .document-item {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .document-item:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .terms-section {
+            border-left: 4px solid var(--ses-primary);
+            padding-left: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .version-badge {
+            background: #e9ecef;
+            color: #495057;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+        }
+        
+        .amendment-item {
+            background: #fff8e1;
+            border: 1px solid #ffcc02;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .signature-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.375rem;
+            padding: 2rem;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        
+        .signature-completed {
+            background: #e8f5e8;
+            border-color: var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .edit-overlay {
+            position: relative;
+        }
+        
+        .edit-overlay.editing {
+            background: rgba(13, 110, 253, 0.05);
+            border: 1px solid var(--ses-primary);
+            border-radius: 0.375rem;
+        }
+    </style>
+</head>
+<body x-data="contractDetail" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">契約管理</a></li>
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">契約一覧</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">契約詳細</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportContract()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-info" @click="printContract()">
+                        <i class="bi bi-printer me-1"></i>印刷
+                    </button>
+                    <button class="btn btn-outline-warning" @click="toggleEditMode()" x-show="!editMode">
+                        <i class="bi bi-pencil me-1"></i>編集
+                    </button>
+                    <template x-if="editMode">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary" @click="cancelEdit()">
+                                <i class="bi bi-x me-1"></i>キャンセル
+                            </button>
+                            <button class="btn btn-primary" @click="saveContract()">
+                                <i class="bi bi-check me-1"></i>保存
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- 契約ヘッダー情報 -->
+            <div class="contract-header">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="contract-type-icon me-3" style="background: rgba(255,255,255,0.2); padding: 0.75rem; border-radius: 0.5rem;">
+                                <i class="bi bi-file-earmark-text" style="font-size: 1.5rem;"></i>
+                            </div>
+                            <div>
+                                <h1 class="h3 mb-1" x-text="contract.name">田中太郎 業務委託契約</h1>
+                                <p class="mb-1 opacity-75" x-text="contract.description">ECサイト開発プロジェクトの業務委託契約</p>
+                                <div class="d-flex align-items-center gap-3">
+                                    <span class="status-badge" :class="getStatusClass(contract.status)" x-text="getStatusText(contract.status)">署名済み</span>
+                                    <span class="version-badge bg-light text-dark" x-text="`v${contract.version}`">v1.2</span>
+                                    <span class="opacity-75">契約ID: <span x-text="contract.id">CON-001</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 text-end">
+                        <div class="mb-2">
+                            <div class="cloudsign-status" :class="getCloudSignClass(contract.cloudSignStatus)">
+                                <i class="bi" :class="getCloudSignIcon(contract.cloudSignStatus)"></i>
+                                <span x-text="getCloudSignText(contract.cloudSignStatus)">CloudSign連携済み</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-light btn-sm" @click="sendToCloudSign()" x-show="contract.cloudSignStatus !== 'connected'">
+                                <i class="bi bi-cloud me-1"></i>CloudSign送信
+                            </button>
+                            <button class="btn btn-warning btn-sm" @click="requestApproval()" x-show="contract.status === 'DRAFT'">
+                                <i class="bi bi-send me-1"></i>承認依頼
+                            </button>
+                            <button class="btn btn-success btn-sm" @click="executeContract()" x-show="contract.status === 'PENDING_SIGNATURE'">
+                                <i class="bi bi-check-circle me-1"></i>契約締結
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 承認進捗 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-diagram-3 me-2"></i>承認ワークフロー
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="approval-progress">
+                        <template x-for="(step, index) in approvalSteps" :key="step.id">
+                            <div class="approval-step" 
+                                 :class="{ 
+                                     'completed': step.status === 'COMPLETED', 
+                                     'active': step.status === 'IN_PROGRESS' 
+                                 }">
+                                <div class="step-indicator">
+                                    <i x-show="step.status === 'COMPLETED'" class="bi bi-check"></i>
+                                    <span x-show="step.status !== 'COMPLETED'" x-text="index + 1"></span>
+                                </div>
+                                <div class="step-label">
+                                    <div x-text="step.name"></div>
+                                    <div x-show="step.approver" class="small" x-text="step.approver"></div>
+                                    <div x-show="step.completedAt" class="small text-muted" x-text="formatDate(step.completedAt)"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-4" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#basic-info" role="tab">
+                        <i class="bi bi-info-circle me-1"></i>基本情報
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#terms" role="tab">
+                        <i class="bi bi-file-text me-1"></i>契約条件
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#documents" role="tab">
+                        <i class="bi bi-folder me-1"></i>関連文書
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#history" role="tab">
+                        <i class="bi bi-clock-history me-1"></i>変更履歴
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#signatures" role="tab">
+                        <i class="bi bi-pen me-1"></i>署名・認証
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content">
+                <!-- 基本情報タブ -->
+                <div class="tab-pane fade show active" id="basic-info" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- 契約当事者情報 -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-people me-2"></i>契約当事者
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="edit-overlay" :class="{ editing: editMode }">
+                                                <h6 class="text-muted mb-3">発注者（甲）</h6>
+                                                <div class="mb-3">
+                                                    <label class="form-label">会社名</label>
+                                                    <input type="text" class="form-control" x-model="editData.client.companyName" :readonly="!editMode">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">代表者</label>
+                                                    <input type="text" class="form-control" x-model="editData.client.representative" :readonly="!editMode">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">住所</label>
+                                                    <textarea class="form-control" x-model="editData.client.address" :readonly="!editMode" rows="3"></textarea>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">連絡先</label>
+                                                    <input type="text" class="form-control" x-model="editData.client.contact" :readonly="!editMode">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="edit-overlay" :class="{ editing: editMode }">
+                                                <h6 class="text-muted mb-3">受託者（乙）</h6>
+                                                <div class="mb-3">
+                                                    <label class="form-label">氏名</label>
+                                                    <input type="text" class="form-control" x-model="editData.contractor.name" :readonly="!editMode">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">住所</label>
+                                                    <textarea class="form-control" x-model="editData.contractor.address" :readonly="!editMode" rows="3"></textarea>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">連絡先</label>
+                                                    <input type="text" class="form-control" x-model="editData.contractor.contact" :readonly="!editMode">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">技術者ID</label>
+                                                    <input type="text" class="form-control" x-model="editData.contractor.engineerId" :readonly="!editMode">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 契約期間・条件 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-calendar-range me-2"></i>契約期間・条件
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="edit-overlay" :class="{ editing: editMode }">
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">契約開始日</label>
+                                                <input type="date" class="form-control" x-model="editData.startDate" :readonly="!editMode">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">契約終了日</label>
+                                                <input type="date" class="form-control" x-model="editData.endDate" :readonly="!editMode">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">契約金額</label>
+                                                <input type="number" class="form-control" x-model="editData.amount" :readonly="!editMode">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">支払い条件</label>
+                                                <select class="form-select" x-model="editData.paymentTerms" :disabled="!editMode">
+                                                    <option value="monthly">月末締め翌月末払い</option>
+                                                    <option value="biweekly">隔月払い</option>
+                                                    <option value="lump_sum">一括払い</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">稼働時間</label>
+                                                <input type="text" class="form-control" x-model="editData.workingHours" :readonly="!editMode">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">勤務地</label>
+                                                <input type="text" class="form-control" x-model="editData.workLocation" :readonly="!editMode">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label">業務内容</label>
+                                                <textarea class="form-control" x-model="editData.workDescription" :readonly="!editMode" rows="4"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- 契約ステータス -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-info-circle me-2"></i>契約ステータス
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">ステータス</span>
+                                            <span class="badge" :class="getStatusClass(contract.status)" x-text="getStatusText(contract.status)"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">作成日</span>
+                                            <span x-text="formatDate(contract.createdAt)"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">更新日</span>
+                                            <span x-text="formatDate(contract.updatedAt)"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3" x-show="contract.signedAt">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">署名日</span>
+                                            <span x-text="formatDate(contract.signedAt)"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">期限まで</span>
+                                            <span x-text="getDaysUntilExpiry(contract.endDate)" :class="isExpiringSoon(contract.endDate) ? 'text-danger fw-bold' : ''"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- CloudSign情報 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-cloud me-2"></i>CloudSign連携
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="text-muted">連携状況</span>
+                                            <div class="cloudsign-status" :class="getCloudSignClass(contract.cloudSignStatus)">
+                                                <i class="bi" :class="getCloudSignIcon(contract.cloudSignStatus)"></i>
+                                                <span x-text="getCloudSignText(contract.cloudSignStatus)"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3" x-show="contract.cloudSignId">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">文書ID</span>
+                                            <span class="small font-monospace" x-text="contract.cloudSignId"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3" x-show="contract.cloudSignUrl">
+                                        <button class="btn btn-outline-info btn-sm w-100" @click="openCloudSign()">
+                                            <i class="bi bi-box-arrow-up-right me-1"></i>CloudSignで開く
+                                        </button>
+                                    </div>
+                                    <div class="mb-3" x-show="contract.cloudSignStatus === 'error'">
+                                        <div class="alert alert-danger alert-sm">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>
+                                            <span x-text="contract.cloudSignError"></span>
+                                        </div>
+                                        <button class="btn btn-outline-warning btn-sm w-100" @click="retryCloudSignSync()">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>再同期
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 契約条件タブ -->
+                <div class="tab-pane fade" id="terms" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- 契約書本文 -->
+                            <div class="card mb-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-file-text me-2"></i>契約書本文
+                                    </h5>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-secondary btn-sm" @click="previewContract()">
+                                            <i class="bi bi-eye me-1"></i>プレビュー
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" x-show="editMode" @click="editContractText()">
+                                            <i class="bi bi-pencil me-1"></i>編集
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="contract-content" x-text="contract.contractText"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- 特記事項 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-exclamation-circle me-2"></i>特記事項・条件
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="(term, index) in contract.specialTerms" :key="index">
+                                        <div class="terms-section">
+                                            <h6 x-text="term.title"></h6>
+                                            <p x-text="term.content"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- 契約修正提案 -->
+                            <div class="card mb-4" x-show="contract.amendments.length > 0">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-pencil-square me-2"></i>修正提案
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="amendment in contract.amendments" :key="amendment.id">
+                                        <div class="amendment-item">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <strong x-text="amendment.title"></strong>
+                                                <span class="badge bg-warning" x-text="amendment.status"></span>
+                                            </div>
+                                            <p class="small mb-2" x-text="amendment.description"></p>
+                                            <div class="small text-muted">
+                                                提案者: <span x-text="amendment.proposer"></span><br>
+                                                日時: <span x-text="formatDate(amendment.proposedAt)"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            
+                            <!-- リスク・注意事項 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-shield-exclamation me-2"></i>リスク・注意事項
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="risk in contract.risks" :key="risk.id">
+                                        <div class="alert" :class="getRiskAlertClass(risk.level)">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi bi-exclamation-triangle me-2 mt-1"></i>
+                                                <div>
+                                                    <div class="fw-medium" x-text="risk.title"></div>
+                                                    <div class="small" x-text="risk.description"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 関連文書タブ -->
+                <div class="tab-pane fade" id="documents" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-folder me-2"></i>添付文書・関連資料
+                            </h5>
+                            <button class="btn btn-outline-primary btn-sm" @click="uploadDocument()">
+                                <i class="bi bi-upload me-1"></i>文書追加
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <template x-for="document in contract.documents" :key="document.id">
+                                <div class="document-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi" :class="getDocumentIcon(document.type)" style="font-size: 1.5rem; margin-right: 1rem;"></i>
+                                            <div>
+                                                <h6 class="mb-1" x-text="document.name"></h6>
+                                                <div class="small text-muted">
+                                                    <span x-text="document.type"></span> • 
+                                                    <span x-text="formatFileSize(document.size)"></span> • 
+                                                    <span x-text="formatDate(document.uploadedAt)"></span>
+                                                </div>
+                                                <div class="small text-muted" x-show="document.description" x-text="document.description"></div>
+                                            </div>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" @click="downloadDocument(document.id)">
+                                                    <i class="bi bi-download me-2"></i>ダウンロード
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" @click="previewDocument(document.id)">
+                                                    <i class="bi bi-eye me-2"></i>プレビュー
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" @click="deleteDocument(document.id)">
+                                                    <i class="bi bi-trash me-2"></i>削除
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 変更履歴タブ -->
+                <div class="tab-pane fade" id="history" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history me-2"></i>契約変更・承認履歴
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                <template x-for="event in contract.history" :key="event.id">
+                                    <div class="timeline-item" :class="{ 'completed': event.type !== 'pending' }">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1" x-text="event.title"></h6>
+                                                <p class="text-muted small mb-2" x-text="event.description"></p>
+                                                <div class="d-flex align-items-center gap-3">
+                                                    <span class="small text-muted">
+                                                        <i class="bi bi-person me-1"></i>
+                                                        <span x-text="event.user"></span>
+                                                    </span>
+                                                    <span class="small text-muted">
+                                                        <i class="bi bi-clock me-1"></i>
+                                                        <span x-text="formatDateTime(event.timestamp)"></span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <span class="badge" :class="getEventTypeClass(event.type)" x-text="getEventTypeText(event.type)"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 署名・認証タブ -->
+                <div class="tab-pane fade" id="signatures" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-pen me-2"></i>電子署名状況
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="signature in contract.signatures" :key="signature.id">
+                                        <div class="signature-area" :class="{ 'signature-completed': signature.signed }">
+                                            <div class="row align-items-center">
+                                                <div class="col-md-8">
+                                                    <h6 x-text="signature.signerName"></h6>
+                                                    <p class="text-muted mb-2" x-text="signature.role"></p>
+                                                    <div x-show="signature.signed">
+                                                        <div class="text-success">
+                                                            <i class="bi bi-check-circle me-2"></i>
+                                                            <span x-text="formatDateTime(signature.signedAt)"></span> に署名済み
+                                                        </div>
+                                                        <div class="small text-muted mt-1">
+                                                            IP: <span x-text="signature.ipAddress"></span> | 
+                                                            デバイス: <span x-text="signature.device"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div x-show="!signature.signed" class="text-muted">
+                                                        <i class="bi bi-clock me-2"></i>署名待ち
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4 text-end">
+                                                    <button x-show="!signature.signed && signature.canSign" 
+                                                            class="btn btn-primary" 
+                                                            @click="requestSignature(signature.id)">
+                                                        <i class="bi bi-pen me-1"></i>署名依頼
+                                                    </button>
+                                                    <div x-show="signature.signed" class="text-success">
+                                                        <i class="bi bi-shield-check" style="font-size: 2rem;"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-shield-check me-2"></i>認証情報
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">署名完了</span>
+                                            <span x-text="`${contract.signatures.filter(s => s.signed).length}/${contract.signatures.length}`"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3" x-show="contract.allSigned">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">契約成立日</span>
+                                            <span x-text="formatDate(contract.executedAt)"></span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">証明書ハッシュ</span>
+                                            <span class="small font-monospace" x-text="contract.certificateHash?.substring(0, 16) + '...'"></span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <button class="btn btn-outline-info btn-sm w-100 mb-2" @click="verifyCertificate()">
+                                        <i class="bi bi-shield-check me-1"></i>証明書検証
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm w-100" @click="downloadCertificate()">
+                                        <i class="bi bi-download me-1"></i>証明書ダウンロード
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('contractDetail', () => ({
+                editMode: false,
+                
+                contract: {
+                    id: 'CON-001',
+                    name: '田中太郎 業務委託契約',
+                    description: 'ECサイト開発プロジェクトの業務委託契約',
+                    type: 'SUBCONTRACT_AGREEMENT',
+                    status: 'ACTIVE',
+                    version: '1.2',
+                    createdAt: '2025-01-01',
+                    updatedAt: '2025-04-15',
+                    signedAt: '2025-04-01',
+                    startDate: '2025-04-01',
+                    endDate: '2025-12-31',
+                    amount: 8000000,
+                    paymentTerms: 'monthly',
+                    workingHours: '140-180時間/月',
+                    workLocation: '東京都渋谷区（リモート併用）',
+                    workDescription: 'ECサイトのフロントエンド・バックエンド開発、システム設計・実装、テスト・運用サポート',
+                    cloudSignStatus: 'connected',
+                    cloudSignId: 'CS-DOC-123456',
+                    cloudSignUrl: 'https://cloudsign.jp/documents/123456',
+                    client: {
+                        companyName: '株式会社ABC商事',
+                        representative: '代表取締役 山田一郎',
+                        address: '東京都港区...',
+                        contact: 'contact@abc-corp.co.jp'
+                    },
+                    contractor: {
+                        name: '田中太郎',
+                        address: '東京都渋谷区...',
+                        contact: 'tanaka@example.com',
+                        engineerId: 'ENG-001'
+                    },
+                    contractText: `業務委託契約書
+
+甲（株式会社ABC商事）と乙（田中太郎）は、以下のとおり業務委託契約を締結する。
+
+第1条（業務内容）
+乙は甲に対し、ECサイトのシステム開発業務を委託する。
+
+第2条（委託期間）
+本契約の期間は、2025年4月1日から2025年12月31日までとする。
+
+第3条（委託料）
+甲は乙に対し、月額800万円を支払うものとする。
+支払いは月末締め翌月末払いとする。
+
+第4条（秘密保持）
+乙は業務上知り得た秘密情報を第三者に漏洩してはならない。
+
+第5条（著作権）
+本業務により生じた成果物の著作権は甲に帰属する。`,
+                    specialTerms: [
+                        {
+                            title: '稼働時間',
+                            content: '月140時間以上180時間以下とし、140時間未満の場合は日割り計算とする。'
+                        },
+                        {
+                            title: '作業場所',
+                            content: '原則として甲の指定する場所とするが、週2日までリモートワーク可能とする。'
+                        },
+                        {
+                            title: '更新条件',
+                            content: '双方合意の上で6ヶ月単位での契約延長を可能とする。'
+                        }
+                    ],
+                    amendments: [
+                        {
+                            id: 1,
+                            title: 'リモートワーク日数増加',
+                            description: '週2日から週3日へのリモートワーク日数増加提案',
+                            status: 'PENDING',
+                            proposer: '田中太郎',
+                            proposedAt: '2025-05-15'
+                        }
+                    ],
+                    risks: [
+                        {
+                            id: 1,
+                            level: 'medium',
+                            title: '契約期限切れリスク',
+                            description: '契約終了まで8ヶ月を切っています。更新手続きの準備を開始してください。'
+                        }
+                    ],
+                    documents: [
+                        {
+                            id: 1,
+                            name: '秘密保持契約書.pdf',
+                            type: 'PDF',
+                            size: 1024000,
+                            uploadedAt: '2025-01-15',
+                            description: '個別秘密保持契約'
+                        },
+                        {
+                            id: 2,
+                            name: '技術仕様書.docx',
+                            type: 'Word',
+                            size: 2048000,
+                            uploadedAt: '2025-02-01',
+                            description: 'システム技術仕様'
+                        }
+                    ],
+                    history: [
+                        {
+                            id: 1,
+                            type: 'created',
+                            title: '契約書作成',
+                            description: '初回契約書を作成しました',
+                            user: '山田PM',
+                            timestamp: '2025-01-01T09:00:00'
+                        },
+                        {
+                            id: 2,
+                            type: 'approved',
+                            title: '承認完了',
+                            description: '部長承認が完了しました',
+                            user: '佐藤部長',
+                            timestamp: '2025-01-15T14:30:00'
+                        },
+                        {
+                            id: 3,
+                            type: 'signed',
+                            title: '署名完了',
+                            description: '双方の署名が完了し、契約が成立しました',
+                            user: 'システム',
+                            timestamp: '2025-04-01T10:00:00'
+                        }
+                    ],
+                    signatures: [
+                        {
+                            id: 1,
+                            signerName: '山田一郎',
+                            role: '発注者代表',
+                            signed: true,
+                            signedAt: '2025-03-31T15:30:00',
+                            ipAddress: '192.168.1.100',
+                            device: 'Windows PC',
+                            canSign: false
+                        },
+                        {
+                            id: 2,
+                            signerName: '田中太郎',
+                            role: '受託者',
+                            signed: true,
+                            signedAt: '2025-04-01T10:00:00',
+                            ipAddress: '192.168.1.101',
+                            device: 'MacBook Pro',
+                            canSign: false
+                        }
+                    ],
+                    allSigned: true,
+                    executedAt: '2025-04-01',
+                    certificateHash: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'
+                },
+                
+                approvalSteps: [
+                    { id: 1, name: '作成', status: 'COMPLETED', approver: null, completedAt: '2025-01-01' },
+                    { id: 2, name: '法務確認', status: 'COMPLETED', approver: '田中法務', completedAt: '2025-01-10' },
+                    { id: 3, name: '部長承認', status: 'COMPLETED', approver: '佐藤部長', completedAt: '2025-01-15' },
+                    { id: 4, name: '署名', status: 'COMPLETED', approver: '双方', completedAt: '2025-04-01' }
+                ],
+                
+                editData: {},
+                
+                init() {
+                    this.editData = JSON.parse(JSON.stringify(this.contract));
+                },
+                
+                toggleEditMode() {
+                    this.editMode = !this.editMode;
+                    if (this.editMode) {
+                        this.editData = JSON.parse(JSON.stringify(this.contract));
+                    }
+                },
+                
+                cancelEdit() {
+                    this.editMode = false;
+                    this.editData = JSON.parse(JSON.stringify(this.contract));
+                },
+                
+                saveContract() {
+                    console.log('保存データ:', this.editData);
+                    this.contract = JSON.parse(JSON.stringify(this.editData));
+                    this.editMode = false;
+                    alert('契約情報を保存しました。');
+                },
+                
+                getStatusClass(status) {
+                    const classes = {
+                        'DRAFT': 'bg-secondary',
+                        'PENDING_SIGNATURE': 'bg-warning',
+                        'ACTIVE': 'bg-success',
+                        'CANCELLED': 'bg-danger',
+                        'TERMINATED': 'bg-dark'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        'DRAFT': 'ドラフト',
+                        'PENDING_SIGNATURE': '署名待ち',
+                        'ACTIVE': '有効',
+                        'CANCELLED': 'キャンセル',
+                        'TERMINATED': '終了'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                getCloudSignClass(status) {
+                    const classes = {
+                        'connected': 'cloudsign-connected',
+                        'pending': 'cloudsign-pending',
+                        'error': 'cloudsign-error',
+                        'none': 'cloudsign-pending'
+                    };
+                    return classes[status] || 'cloudsign-pending';
+                },
+                
+                getCloudSignIcon(status) {
+                    const icons = {
+                        'connected': 'bi-cloud-check',
+                        'pending': 'bi-cloud-upload',
+                        'error': 'bi-cloud-slash',
+                        'none': 'bi-cloud'
+                    };
+                    return icons[status] || 'bi-cloud';
+                },
+                
+                getCloudSignText(status) {
+                    const texts = {
+                        'connected': '連携済み',
+                        'pending': '連携待ち',
+                        'error': 'エラー',
+                        'none': '未連携'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                getRiskAlertClass(level) {
+                    const classes = {
+                        'high': 'alert-danger',
+                        'medium': 'alert-warning',
+                        'low': 'alert-info'
+                    };
+                    return classes[level] || 'alert-info';
+                },
+                
+                getDocumentIcon(type) {
+                    const icons = {
+                        'PDF': 'bi-file-earmark-pdf',
+                        'Word': 'bi-file-earmark-word',
+                        'Excel': 'bi-file-earmark-excel',
+                        'Image': 'bi-file-earmark-image'
+                    };
+                    return icons[type] || 'bi-file-earmark';
+                },
+                
+                getEventTypeClass(type) {
+                    const classes = {
+                        'created': 'bg-info',
+                        'approved': 'bg-success',
+                        'signed': 'bg-primary',
+                        'amended': 'bg-warning',
+                        'terminated': 'bg-danger'
+                    };
+                    return classes[type] || 'bg-secondary';
+                },
+                
+                getEventTypeText(type) {
+                    const texts = {
+                        'created': '作成',
+                        'approved': '承認',
+                        'signed': '署名',
+                        'amended': '修正',
+                        'terminated': '終了'
+                    };
+                    return texts[type] || type;
+                },
+                
+                isExpiringSoon(endDate) {
+                    const end = new Date(endDate);
+                    const now = new Date();
+                    const diffTime = end - now;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays <= 30 && diffDays >= 0;
+                },
+                
+                getDaysUntilExpiry(endDate) {
+                    const end = new Date(endDate);
+                    const now = new Date();
+                    const diffTime = end - now;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays < 0) {
+                        return `${Math.abs(diffDays)}日経過`;
+                    } else if (diffDays === 0) {
+                        return '今日期限';
+                    } else {
+                        return `残り${diffDays}日`;
+                    }
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                },
+                
+                formatDateTime(dateStr) {
+                    return new Date(dateStr).toLocaleString('ja-JP');
+                },
+                
+                formatFileSize(bytes) {
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    if (bytes === 0) return '0 B';
+                    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+                },
+                
+                sendToCloudSign() {
+                    console.log('CloudSign送信');
+                    alert('CloudSignに送信しました。');
+                },
+                
+                requestApproval() {
+                    console.log('承認依頼');
+                    alert('承認依頼を送信しました。');
+                },
+                
+                executeContract() {
+                    console.log('契約締結');
+                    alert('契約を締結しました。');
+                },
+                
+                exportContract() {
+                    console.log('契約エクスポート');
+                },
+                
+                printContract() {
+                    window.print();
+                },
+                
+                previewContract() {
+                    console.log('契約プレビュー');
+                },
+                
+                editContractText() {
+                    console.log('契約書編集');
+                },
+                
+                openCloudSign() {
+                    window.open(this.contract.cloudSignUrl, '_blank');
+                },
+                
+                retryCloudSignSync() {
+                    console.log('CloudSign再同期');
+                    alert('再同期を開始しました。');
+                },
+                
+                uploadDocument() {
+                    console.log('文書アップロード');
+                },
+                
+                downloadDocument(id) {
+                    console.log('文書ダウンロード:', id);
+                },
+                
+                previewDocument(id) {
+                    console.log('文書プレビュー:', id);
+                },
+                
+                deleteDocument(id) {
+                    if (confirm('この文書を削除しますか？')) {
+                        console.log('文書削除:', id);
+                    }
+                },
+                
+                requestSignature(id) {
+                    console.log('署名依頼:', id);
+                    alert('署名依頼を送信しました。');
+                },
+                
+                verifyCertificate() {
+                    console.log('証明書検証');
+                    alert('証明書の検証が完了しました。');
+                },
+                
+                downloadCertificate() {
+                    console.log('証明書ダウンロード');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

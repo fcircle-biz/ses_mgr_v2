@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件新規作成 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            border: 2px solid #dee2e6;
+            background: white;
+            color: #6c757d;
+            font-weight: 500;
+            position: relative;
+        }
+        
+        .step-indicator.active {
+            border-color: var(--ses-primary);
+            background: var(--ses-primary);
+            color: white;
+        }
+        
+        .step-indicator.completed {
+            border-color: var(--ses-success);
+            background: var(--ses-success);
+            color: white;
+        }
+        
+        .step-line {
+            flex: 1;
+            height: 2px;
+            background: #dee2e6;
+            margin: 0 1rem;
+        }
+        
+        .step-line.completed {
+            background: var(--ses-success);
+        }
+        
+        .form-section {
+            display: none;
+        }
+        
+        .form-section.active {
+            display: block;
+        }
+        
+        .customer-card {
+            border: 2px solid #dee2e6;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .customer-card:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.1);
+        }
+        
+        .customer-card.selected {
+            border-color: var(--ses-primary);
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+        
+        .skill-tag {
+            display: inline-block;
+            background: #e9ecef;
+            color: #495057;
+            padding: 0.25rem 0.5rem;
+            margin: 0.125rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .skill-tag:hover {
+            background: var(--ses-primary);
+            color: white;
+        }
+        
+        .skill-tag.selected {
+            background: var(--ses-primary);
+            color: white;
+        }
+    </style>
+</head>
+<body x-data="projectCreate" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">案件管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">新規作成</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">新規案件作成</h1>
+                    <p class="text-muted mb-0">新しい案件を登録します</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="saveDraft()">
+                        <i class="bi bi-cloud-upload me-1"></i>下書き保存
+                    </button>
+                    <button class="btn btn-outline-secondary" @click="cancel()">
+                        <i class="bi bi-x me-1"></i>キャンセル
+                    </button>
+                </div>
+            </div>
+            
+            <!-- ステップインジケーター -->
+            <div class="card mb-4">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <template x-for="(step, index) in steps" :key="index">
+                            <div class="d-flex align-items-center">
+                                <div class="step-indicator" 
+                                     :class="{ 
+                                         'active': currentStep === index,
+                                         'completed': currentStep > index 
+                                     }"
+                                     x-text="currentStep > index ? '✓' : index + 1"></div>
+                                <div class="step-line" 
+                                     :class="{ 'completed': currentStep > index }"
+                                     x-show="index < steps.length - 1"></div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="text-center mt-3">
+                        <h6 class="mb-0" x-text="steps[currentStep].title"></h6>
+                        <small class="text-muted" x-text="steps[currentStep].description"></small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- フォームコンテンツ -->
+            <form @submit.prevent="submitForm()">
+                <!-- ステップ1: 基本情報 -->
+                <div class="form-section" :class="{ 'active': currentStep === 0 }">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-info-circle me-2"></i>案件基本情報
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label">案件名 <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" x-model="formData.name" required>
+                                            <div class="form-text">顧客名や技術を含む分かりやすい名前を入力してください</div>
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label">案件概要</label>
+                                            <textarea class="form-control" rows="4" x-model="formData.description"></textarea>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">初期ステータス</label>
+                                            <select class="form-select" x-model="formData.status">
+                                                <option value="LEAD">リード</option>
+                                                <option value="PROPOSING">提案中</option>
+                                                <option value="NEGOTIATING">交渉中</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">優先度</label>
+                                            <select class="form-select" x-model="formData.priority">
+                                                <option value="LOW">低</option>
+                                                <option value="MEDIUM" selected>中</option>
+                                                <option value="HIGH">高</option>
+                                                <option value="URGENT">緊急</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">開始予定日</label>
+                                            <input type="date" class="form-control" x-model="formData.startDate">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">終了予定日</label>
+                                            <input type="date" class="form-control" x-model="formData.endDate">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">予算下限 (円)</label>
+                                            <input type="number" class="form-control" x-model="formData.budget.minAmount" min="0" step="1000">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">予算上限 (円)</label>
+                                            <input type="number" class="form-control" x-model="formData.budget.maxAmount" min="0" step="1000">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">通貨</label>
+                                            <select class="form-select" x-model="formData.budget.currency">
+                                                <option value="JPY">日本円</option>
+                                                <option value="USD">米ドル</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-lightbulb me-2"></i>入力のヒント
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled small">
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            案件名は具体的に記載してください
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            概要には技術要件の概略を含めてください
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            予算は概算でも構いません
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            日程は後から変更可能です
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ステップ2: 顧客情報 -->
+                <div class="form-section" :class="{ 'active': currentStep === 1 }">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-building me-2"></i>顧客選択
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label">顧客ID <span class="text-danger">*</span></label>
+                                            <select class="form-select" x-model="formData.customerId" required>
+                                                <option value="">顧客を選択してください</option>
+                                                <option value="customer-001">customer-001 - 株式会社ABC商事</option>
+                                                <option value="customer-002">customer-002 - XYZ製造株式会社</option>
+                                                <option value="customer-003">customer-003 - テクノ・システムズ</option>
+                                                <option value="customer-004">customer-004 - デジタル・ソリューション</option>
+                                            </select>
+                                            <div class="form-text">顧客が一覧にない場合は、顧客管理機能で新規登録してください</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-info-circle me-2"></i>選択中の顧客
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-if="selectedCustomer">
+                                        <div>
+                                            <h6 x-text="selectedCustomer.name"></h6>
+                                            <p class="text-muted small mb-2" x-text="selectedCustomer.industry"></p>
+                                            <div class="small">
+                                                <div><strong>担当者:</strong> <span x-text="selectedCustomer.contactPerson"></span></div>
+                                                <div><strong>メール:</strong> <span x-text="selectedCustomer.email"></span></div>
+                                                <div><strong>電話:</strong> <span x-text="selectedCustomer.phone"></span></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!selectedCustomer">
+                                        <p class="text-muted small">顧客を選択してください</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ステップ3: 技術要件 -->
+                <div class="form-section" :class="{ 'active': currentStep === 2 }">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-code-slash me-2"></i>技術要件
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-4">
+                                        <label class="form-label">要件説明</label>
+                                        <textarea class="form-control" rows="3" x-model="formData.requirement.description" 
+                                                  placeholder="プロジェクトの詳細要件を記述..."></textarea>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label">必要スキル</label>
+                                        <div class="mb-3">
+                                            <template x-for="category in skillCategories" :key="category.name">
+                                                <div class="mb-3">
+                                                    <h6 class="mb-2" x-text="category.name"></h6>
+                                                    <div>
+                                                        <template x-for="skill in category.skills" :key="skill">
+                                                            <span class="skill-tag" 
+                                                                  :class="{ 'selected': formData.requirement.requiredSkills.includes(skill) }"
+                                                                  @click="toggleSkill(skill)"
+                                                                  x-text="skill"></span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">その他のスキル</label>
+                                            <input type="text" class="form-control" placeholder="カンマ区切りで入力" x-model="customSkills">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">経験レベル</label>
+                                            <select class="form-select" x-model="formData.requirement.experienceLevel">
+                                                <option value="JUNIOR">ジュニア (1-2年)</option>
+                                                <option value="MIDDLE">ミドル (3-5年)</option>
+                                                <option value="SENIOR">シニア (5-10年)</option>
+                                                <option value="EXPERT">エキスパート (10年以上)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">作業場所</label>
+                                            <select class="form-select" x-model="formData.requirement.workLocation">
+                                                <option value="REMOTE">リモート</option>
+                                                <option value="CLIENT_SITE">客先常駐</option>
+                                                <option value="HYBRID">ハイブリッド</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-4">
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">チームサイズ</label>
+                                                <input type="number" class="form-control" x-model="formData.requirement.teamSize" min="1" placeholder="人数">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-4">
+                                        <label class="form-label">特別要件</label>
+                                        <input type="text" class="form-control" x-model="customSpecialRequirements" 
+                                               placeholder="24時間365日対応, セキュリティ要件 (カンマ区切り)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-check-circle me-2"></i>選択中のスキル
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-if="formData.skills.length > 0">
+                                        <div>
+                                            <template x-for="skill in formData.skills" :key="skill">
+                                                <span class="badge bg-primary me-1 mb-1" x-text="skill"></span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="formData.skills.length === 0">
+                                        <p class="text-muted small">スキルを選択してください</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ステップ4: 確認 -->
+                <div class="form-section" :class="{ 'active': currentStep === 3 }">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-check-square me-2"></i>入力内容確認
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>基本情報</h6>
+                                    <table class="table table-sm">
+                                        <tr><td><strong>案件名:</strong></td><td x-text="formData.name"></td></tr>
+                                        <tr><td><strong>ステータス:</strong></td><td x-text="formData.status"></td></tr>
+                                        <tr><td><strong>優先度:</strong></td><td x-text="formData.priority"></td></tr>
+                                        <tr><td><strong>期間:</strong></td><td x-text="`${formData.startDate} 〜 ${formData.endDate}`"></td></tr>
+                                        <tr><td><strong>予算:</strong></td><td x-text="`${formData.budget}万円 (${formData.budgetType})`"></td></tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>技術要件</h6>
+                                    <table class="table table-sm">
+                                        <tr><td><strong>必要スキル:</strong></td><td><span x-text="formData.skills.join(', ')"></span></td></tr>
+                                        <tr><td><strong>最小経験年数:</strong></td><td x-text="`${formData.minExperience}年`"></td></tr>
+                                        <tr><td><strong>作業環境:</strong></td><td x-text="getWorkEnvironment()"></td></tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <template x-if="selectedCustomer">
+                                <div class="mt-4">
+                                    <h6>顧客情報</h6>
+                                    <table class="table table-sm">
+                                        <tr><td><strong>顧客名:</strong></td><td x-text="selectedCustomer.name"></td></tr>
+                                        <tr><td><strong>業界:</strong></td><td x-text="selectedCustomer.industry"></td></tr>
+                                        <tr><td><strong>担当者:</strong></td><td x-text="selectedCustomer.contactPerson"></td></tr>
+                                        <tr><td><strong>連絡先:</strong></td><td x-text="selectedCustomer.email"></td></tr>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ナビゲーションボタン -->
+                <div class="d-flex justify-content-between mt-4">
+                    <button type="button" class="btn btn-outline-secondary" 
+                            :disabled="currentStep === 0" 
+                            @click="previousStep()">
+                        <i class="bi bi-arrow-left me-1"></i>前へ
+                    </button>
+                    
+                    <div class="d-flex gap-2">
+                        <template x-if="currentStep < steps.length - 1">
+                            <button type="button" class="btn btn-primary" @click="nextStep()">
+                                次へ <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </template>
+                        <template x-if="currentStep === steps.length - 1">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check me-1"></i>案件作成
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('projectCreate', () => ({
+                currentStep: 0,
+                showNewCustomerForm: false,
+                customerSearch: '',
+                customSkills: '',
+                
+                steps: [
+                    { title: '基本情報', description: '案件の基本的な情報を入力します' },
+                    { title: '顧客情報', description: '案件の顧客を選択または新規登録します' },
+                    { title: '技術要件', description: '必要なスキルや要件を設定します' },
+                    { title: '確認', description: '入力内容を確認して案件を作成します' }
+                ],
+                
+                formData: {
+                    name: '',
+                    description: '',
+                    status: 'LEAD',
+                    priority: 'MEDIUM',
+                    startDate: '',
+                    endDate: '',
+                    budget: '',
+                    budgetType: 'FIXED',
+                    customerId: '',
+                    skills: [],
+                    minExperience: 0,
+                    preferredExperience: 3,
+                    remote: false,
+                    onsite: false,
+                    hybrid: false,
+                    detailRequirements: ''
+                },
+                
+                newCustomer: {
+                    name: '',
+                    industry: '',
+                    contactPerson: '',
+                    email: '',
+                    phone: '',
+                    address: ''
+                },
+                
+                customers: [
+                    { id: 1, name: '株式会社ABC商事', industry: '小売業', contactPerson: '鈴木部長', email: 'suzuki@abc.co.jp', phone: '03-1234-5678' },
+                    { id: 2, name: 'XYZ製造株式会社', industry: '製造業', contactPerson: '田中課長', email: 'tanaka@xyz.co.jp', phone: '03-9876-5432' },
+                    { id: 3, name: '株式会社DEFシステム', industry: 'IT・ソフトウェア', contactPerson: '佐藤CTO', email: 'sato@def.co.jp', phone: '03-5555-1234' }
+                ],
+                
+                skillCategories: [
+                    {
+                        name: 'バックエンド',
+                        skills: ['Java', 'Python', 'C#', 'PHP', 'Node.js', 'Go', 'Ruby', 'Kotlin']
+                    },
+                    {
+                        name: 'フロントエンド', 
+                        skills: ['React', 'Vue.js', 'Angular', 'JavaScript', 'TypeScript', 'HTML/CSS']
+                    },
+                    {
+                        name: 'データベース',
+                        skills: ['PostgreSQL', 'MySQL', 'Oracle', 'MongoDB', 'Redis', 'SQLServer']
+                    },
+                    {
+                        name: 'インフラ・クラウド',
+                        skills: ['AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'Linux']
+                    }
+                ],
+                
+                selectedCustomer: null,
+                
+                get filteredCustomers() {
+                    if (!this.customerSearch) return this.customers;
+                    return this.customers.filter(c => 
+                        c.name.toLowerCase().includes(this.customerSearch.toLowerCase()) ||
+                        c.industry.toLowerCase().includes(this.customerSearch.toLowerCase())
+                    );
+                },
+                
+                nextStep() {
+                    if (this.validateCurrentStep()) {
+                        if (this.currentStep < this.steps.length - 1) {
+                            this.currentStep++;
+                        }
+                    }
+                },
+                
+                previousStep() {
+                    if (this.currentStep > 0) {
+                        this.currentStep--;
+                    }
+                },
+                
+                validateCurrentStep() {
+                    switch (this.currentStep) {
+                        case 0:
+                            if (!this.formData.name) {
+                                alert('案件名を入力してください');
+                                return false;
+                            }
+                            break;
+                        case 1:
+                            if (!this.formData.customerId && !this.showNewCustomerForm) {
+                                alert('顧客を選択してください');
+                                return false;
+                            }
+                            if (this.showNewCustomerForm && !this.newCustomer.name) {
+                                alert('顧客名を入力してください');
+                                return false;
+                            }
+                            break;
+                        case 2:
+                            if (this.formData.skills.length === 0) {
+                                alert('必要スキルを選択してください');
+                                return false;
+                            }
+                            break;
+                    }
+                    return true;
+                },
+                
+                selectCustomer(customer) {
+                    this.formData.customerId = customer.id;
+                    this.selectedCustomer = customer;
+                },
+                
+                toggleSkill(skill) {
+                    const index = this.formData.requirement.requiredSkills.indexOf(skill);
+                    if (index > -1) {
+                        this.formData.requirement.requiredSkills.splice(index, 1);
+                    } else {
+                        this.formData.requirement.requiredSkills.push(skill);
+                    }
+                },
+                
+                getWorkLocationText() {
+                    const locationMap = {
+                        'REMOTE': 'リモート',
+                        'CLIENT_SITE': '客先常駐',
+                        'HYBRID': 'ハイブリッド'
+                    };
+                    return locationMap[this.formData.requirement.workLocation] || '指定なし';
+                },
+                
+                submitForm() {
+                    if (!this.validateCurrentStep()) return;
+                    
+                    // カスタムスキルを追加
+                    if (this.customSkills) {
+                        const customSkillsArray = this.customSkills.split(',').map(s => s.trim()).filter(s => s);
+                        this.formData.requirement.requiredSkills.push(...customSkillsArray);
+                    }
+                    
+                    // 特別要件を追加
+                    if (this.customSpecialRequirements) {
+                        const specialRequirementsArray = this.customSpecialRequirements.split(',').map(s => s.trim()).filter(s => s);
+                        this.formData.requirement.specialRequirements.push(...specialRequirementsArray);
+                    }
+                    
+                    // APIリクエストデータを準備
+                    const apiData = {
+                        name: this.formData.name,
+                        customerId: this.formData.customerId,
+                        status: this.formData.status,
+                        requirement: this.formData.requirement,
+                        period: this.formData.period,
+                        budget: this.formData.budget,
+                        proposalDeadline: this.formData.proposalDeadline
+                    };
+                    
+                    console.log('API提出データ:', apiData);
+                    alert('案件を作成しました！');
+                    // 実際の処理: POST /projects APIコールしてリダイレクト
+                },
+                
+                saveDraft() {
+                    console.log('下書き保存:', this.formData);
+                    alert('下書きを保存しました');
+                },
+                
+                cancel() {
+                    if (confirm('入力内容が失われますが、よろしいですか？')) {
+                        window.history.back();
+                    }
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

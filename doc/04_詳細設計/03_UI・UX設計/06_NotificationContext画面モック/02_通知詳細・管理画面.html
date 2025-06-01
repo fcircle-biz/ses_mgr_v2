@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知詳細・管理 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --notification-email: #0ea5e9;
+            --notification-slack: #4a154b;
+            --notification-push: #059669;
+            --notification-sms: #dc2626;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .breadcrumb {
+            background-color: transparent;
+            padding: 0;
+            margin: 0;
+        }
+
+        .notification-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .status-timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+
+        .status-timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #e5e7eb;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 2rem;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -0.625rem;
+            top: 0.25rem;
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            background-color: #6b7280;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 0 3px #e5e7eb;
+        }
+
+        .timeline-item.active::before {
+            background-color: #059669;
+            box-shadow: 0 0 0 3px #dcfce7;
+        }
+
+        .timeline-item.failed::before {
+            background-color: #dc2626;
+            box-shadow: 0 0 0 3px #fee2e2;
+        }
+
+        .timeline-item.pending::before {
+            background-color: #eab308;
+            box-shadow: 0 0 0 3px #fef3c7;
+        }
+
+        .notification-content {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+        }
+
+        .metadata-card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .log-entry {
+            border-left: 4px solid #e5e7eb;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: #f9fafb;
+            border-radius: 0 0.375rem 0.375rem 0;
+        }
+
+        .log-entry.success {
+            border-left-color: #10b981;
+            background-color: #f0fdf4;
+        }
+
+        .log-entry.error {
+            border-left-color: #ef4444;
+            background-color: #fef2f2;
+        }
+
+        .log-entry.warning {
+            border-left-color: #f59e0b;
+            background-color: #fffbeb;
+        }
+
+        .log-entry.info {
+            border-left-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+
+        .recipient-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--ses-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+
+        .delivery-stats {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--ses-primary);
+        }
+
+        .action-buttons {
+            position: sticky;
+            top: 1rem;
+        }
+
+        .notification-type-badge {
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .notification-type-email { background-color: var(--notification-email); color: white; }
+        .notification-type-slack { background-color: var(--notification-slack); color: white; }
+        .notification-type-push { background-color: var(--notification-push); color: white; }
+        .notification-type-sms { background-color: var(--notification-sms); color: white; }
+
+        .variable-tag {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-family: 'Courier New', monospace;
+            margin: 0.125rem;
+            display: inline-block;
+        }
+
+        .retry-card {
+            border: 2px solid #fbbf24;
+            background-color: #fffbeb;
+        }
+
+        .error-details {
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#" style="color: var(--ses-primary);">
+                <i class="bi bi-layers me-2"></i>SES業務システム
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="me-3">管理者: 田中太郎</span>
+                <button class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-box-arrow-right"></i> ログアウト
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- サイドバー -->
+    <div class="sidebar">
+        <nav class="nav flex-column p-3">
+            <a class="nav-link text-white mb-2" href="#"><i class="bi bi-speedometer2 me-2"></i>ダッシュボード</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-folder me-2"></i>案件管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-people me-2"></i>技術者管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-search-heart me-2"></i>マッチング</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-file-earmark-text me-2"></i>契約管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-clock me-2"></i>勤怠・工数</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-receipt me-2"></i>請求・支払</a>
+            <a class="nav-link text-white bg-primary rounded mb-2" href="#"><i class="bi bi-bell me-2"></i>通知管理</a>
+            <a class="nav-link text-light mb-2" href="#"><i class="bi bi-graph-up me-2"></i>レポート</a>
+        </nav>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="container-fluid p-4" x-data="notificationDetail()">
+            <!-- パンくずリスト -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="#" class="text-decoration-none">通知管理</a></li>
+                    <li class="breadcrumb-item"><a href="#" class="text-decoration-none">通知一覧</a></li>
+                    <li class="breadcrumb-item active">通知詳細</li>
+                </ol>
+            </nav>
+
+            <!-- 通知ヘッダー -->
+            <div class="notification-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="notification-type-badge me-3" 
+                                  :class="'notification-type-' + notification.type.toLowerCase()"
+                                  x-text="notification.type">
+                            </span>
+                            <div class="d-flex align-items-center">
+                                <template x-if="notification.status === 'DELIVERED'">
+                                    <i class="bi bi-check-circle-fill text-success me-2 fs-5"></i>
+                                </template>
+                                <template x-if="notification.status === 'FAILED'">
+                                    <i class="bi bi-x-circle-fill text-danger me-2 fs-5"></i>
+                                </template>
+                                <template x-if="notification.status === 'PENDING'">
+                                    <i class="bi bi-clock-fill text-warning me-2 fs-5"></i>
+                                </template>
+                                <template x-if="notification.status === 'PROCESSING'">
+                                    <i class="bi bi-hourglass-split text-info me-2 fs-5"></i>
+                                </template>
+                                <span class="text-white-50" x-text="getStatusText(notification.status)"></span>
+                            </div>
+                        </div>
+                        <h1 class="h3 mb-2" x-text="notification.subject"></h1>
+                        <p class="mb-0 text-white-75">
+                            通知ID: <span x-text="notification.id"></span> | 
+                            作成日時: <span x-text="formatDateTime(notification.createdAt)"></span>
+                        </p>
+                    </div>
+                    <div class="col-auto">
+                        <div class="action-buttons">
+                            <div class="btn-group-vertical d-grid gap-2">
+                                <template x-if="notification.status === 'FAILED'">
+                                    <button class="btn btn-warning" @click="retryNotification()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>再送信
+                                    </button>
+                                </template>
+                                <template x-if="notification.status === 'PENDING'">
+                                    <button class="btn btn-outline-light" @click="cancelNotification()">
+                                        <i class="bi bi-x-circle me-1"></i>キャンセル
+                                    </button>
+                                </template>
+                                <button class="btn btn-outline-light" @click="duplicateNotification()">
+                                    <i class="bi bi-files me-1"></i>複製
+                                </button>
+                                <button class="btn btn-outline-light" @click="downloadLog()">
+                                    <i class="bi bi-download me-1"></i>ログDL
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 配信統計 -->
+            <template x-if="notification.deliveryStats">
+                <div class="delivery-stats">
+                    <h5 class="mb-3">
+                        <i class="bi bi-graph-up me-2"></i>配信統計
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <div class="stat-value" x-text="notification.deliveryStats.totalAttempts"></div>
+                                <div class="text-muted">配信試行回数</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <div class="stat-value text-success" x-text="notification.deliveryStats.successRate + '%'"></div>
+                                <div class="text-muted">成功率</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <div class="stat-value" x-text="notification.deliveryStats.avgDeliveryTime + 'ms'"></div>
+                                <div class="text-muted">平均配信時間</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <div class="stat-value text-info" x-text="notification.deliveryStats.lastAttempt"></div>
+                                <div class="text-muted">最終試行</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <div class="row">
+                <!-- 左カラム: 通知詳細 -->
+                <div class="col-md-8">
+                    <!-- 宛先情報 -->
+                    <div class="card metadata-card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-person-circle me-2"></i>宛先情報
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="recipient-avatar">
+                                    <span x-text="notification.recipientName.charAt(0)"></span>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1" x-text="notification.recipientName"></h6>
+                                    <p class="text-muted mb-1" x-text="notification.recipientContact"></p>
+                                    <span class="badge bg-light text-dark" x-text="notification.recipientType"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 通知内容 -->
+                    <div class="card metadata-card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-file-text me-2"></i>通知内容
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-medium">件名</label>
+                                <div class="form-control-plaintext border rounded px-3 py-2 bg-light" x-text="notification.subject"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium">本文</label>
+                                <div class="notification-content" x-text="notification.content"></div>
+                            </div>
+                            <template x-if="notification.variables && Object.keys(notification.variables).length > 0">
+                                <div class="mb-3">
+                                    <label class="form-label fw-medium">変数</label>
+                                    <div>
+                                        <template x-for="(value, key) in notification.variables" :key="key">
+                                            <span class="variable-tag">
+                                                <span x-text="key"></span>: <span x-text="value"></span>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- エラー詳細 (失敗時のみ表示) -->
+                    <template x-if="notification.status === 'FAILED' && notification.errorDetails">
+                        <div class="card retry-card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0 text-warning">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>エラー詳細
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="error-details">
+                                    <div class="mb-2">
+                                        <strong>エラーコード:</strong> <span x-text="notification.errorDetails.code"></span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>メッセージ:</strong> <span x-text="notification.errorDetails.message"></span>
+                                    </div>
+                                    <template x-if="notification.errorDetails.details">
+                                        <div class="mb-2">
+                                            <strong>詳細:</strong>
+                                            <pre class="mt-2 p-2 bg-white border rounded small" x-text="notification.errorDetails.details"></pre>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <span class="text-muted">
+                                        再試行回数: <span x-text="notification.retryCount"></span> / <span x-text="notification.maxRetries"></span>
+                                    </span>
+                                    <button class="btn btn-warning" @click="retryNotification()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>再送信
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 配信ログ -->
+                    <div class="card metadata-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-list-ul me-2"></i>配信ログ
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <template x-for="log in notification.deliveryLogs" :key="log.id">
+                                <div class="log-entry" :class="log.level.toLowerCase()">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center">
+                                            <template x-if="log.level === 'SUCCESS'">
+                                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                            </template>
+                                            <template x-if="log.level === 'ERROR'">
+                                                <i class="bi bi-x-circle-fill text-danger me-2"></i>
+                                            </template>
+                                            <template x-if="log.level === 'WARNING'">
+                                                <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                                            </template>
+                                            <template x-if="log.level === 'INFO'">
+                                                <i class="bi bi-info-circle-fill text-info me-2"></i>
+                                            </template>
+                                            <strong x-text="log.message"></strong>
+                                        </div>
+                                        <small class="text-muted" x-text="formatDateTime(log.timestamp)"></small>
+                                    </div>
+                                    <template x-if="log.details">
+                                        <p class="mb-0 text-muted" x-text="log.details"></p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右カラム: ステータス・メタデータ -->
+                <div class="col-md-4">
+                    <!-- ステータスタイムライン -->
+                    <div class="card metadata-card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history me-2"></i>ステータス履歴
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="status-timeline">
+                                <template x-for="status in notification.statusHistory" :key="status.id">
+                                    <div class="timeline-item" :class="getTimelineClass(status)">
+                                        <div class="fw-medium" x-text="getStatusText(status.status)"></div>
+                                        <small class="text-muted" x-text="formatDateTime(status.timestamp)"></small>
+                                        <template x-if="status.note">
+                                            <p class="mb-0 mt-1 text-muted small" x-text="status.note"></p>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 通知設定 -->
+                    <div class="card metadata-card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-gear me-2"></i>通知設定
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2 text-sm">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">優先度:</span>
+                                        <span class="fw-medium" x-text="notification.priority"></span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">テンプレート:</span>
+                                        <span class="fw-medium" x-text="notification.templateName || 'カスタム'"></span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">予約送信:</span>
+                                        <span class="fw-medium" x-text="notification.scheduledAt ? formatDateTime(notification.scheduledAt) : '即時送信'"></span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">再試行上限:</span>
+                                        <span class="fw-medium" x-text="notification.maxRetries + '回'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 関連情報 -->
+                    <div class="card metadata-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-link-45deg me-2"></i>関連情報
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <template x-if="notification.relatedEntities && notification.relatedEntities.length > 0">
+                                <div>
+                                    <template x-for="entity in notification.relatedEntities" :key="entity.id">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div>
+                                                <div class="fw-medium" x-text="entity.name"></div>
+                                                <small class="text-muted" x-text="entity.type"></small>
+                                            </div>
+                                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <template x-if="!notification.relatedEntities || notification.relatedEntities.length === 0">
+                                <p class="text-muted mb-0">関連する情報はありません</p>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Alpine.js -->
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+
+    <script>
+        function notificationDetail() {
+            return {
+                notification: {
+                    id: 'notification-12345',
+                    type: 'EMAIL',
+                    recipientName: '田中太郎',
+                    recipientContact: 'tanaka@example.com',
+                    recipientType: 'USER',
+                    subject: 'プロジェクト開始のお知らせ - 新システム開発案件',
+                    content: `田中太郎 様
+
+お疲れ様です。
+
+新しいプロジェクト「新システム開発案件」に参加することが決定しましたのでお知らせいたします。
+
+■ プロジェクト詳細
+・プロジェクト名: 新システム開発案件
+・開始日: 2024年1月20日
+・終了予定日: 2024年6月30日
+・担当ロール: バックエンドエンジニア
+・単価: 750,000円/月
+
+■ 参画先情報
+・企業名: ABC株式会社
+・住所: 東京都渋谷区***
+・勤務形態: リモート + 週2回出社
+
+プロジェクトの詳細については、別途ご連絡いたします。
+何かご不明な点がございましたら、お気軽にお声がけください。
+
+よろしくお願いいたします。`,
+                    priority: 'NORMAL',
+                    status: 'DELIVERED',
+                    templateName: 'プロジェクト参加通知',
+                    scheduledAt: null,
+                    createdAt: '2024-01-15T09:30:00',
+                    sentAt: '2024-01-15T09:31:15',
+                    deliveredAt: '2024-01-15T09:31:47',
+                    retryCount: 0,
+                    maxRetries: 3,
+                    variables: {
+                        userName: '田中太郎',
+                        projectName: '新システム開発案件',
+                        startDate: '2024年1月20日',
+                        endDate: '2024年6月30日',
+                        role: 'バックエンドエンジニア',
+                        rate: '750,000円/月'
+                    },
+                    deliveryStats: {
+                        totalAttempts: 1,
+                        successRate: 100,
+                        avgDeliveryTime: 32000,
+                        lastAttempt: '09:31'
+                    },
+                    statusHistory: [
+                        {
+                            id: 1,
+                            status: 'PENDING',
+                            timestamp: '2024-01-15T09:30:00',
+                            note: '通知がキューに追加されました'
+                        },
+                        {
+                            id: 2,
+                            status: 'PROCESSING',
+                            timestamp: '2024-01-15T09:31:00',
+                            note: 'メール送信処理を開始'
+                        },
+                        {
+                            id: 3,
+                            status: 'SENT',
+                            timestamp: '2024-01-15T09:31:15',
+                            note: 'SMTPサーバーへの送信完了'
+                        },
+                        {
+                            id: 4,
+                            status: 'DELIVERED',
+                            timestamp: '2024-01-15T09:31:47',
+                            note: '受信者のメールサーバーで受信確認'
+                        }
+                    ],
+                    deliveryLogs: [
+                        {
+                            id: 1,
+                            level: 'INFO',
+                            message: '通知処理開始',
+                            details: 'テンプレート "プロジェクト参加通知" を使用して通知を作成',
+                            timestamp: '2024-01-15T09:31:00'
+                        },
+                        {
+                            id: 2,
+                            level: 'INFO',
+                            message: '変数置換完了',
+                            details: '6個の変数を正常に置換',
+                            timestamp: '2024-01-15T09:31:05'
+                        },
+                        {
+                            id: 3,
+                            level: 'SUCCESS',
+                            message: 'SMTP送信成功',
+                            details: 'smtp.example.com:587 経由で送信完了 (Message-ID: <abc123@example.com>)',
+                            timestamp: '2024-01-15T09:31:15'
+                        },
+                        {
+                            id: 4,
+                            level: 'SUCCESS',
+                            message: '配信確認',
+                            details: '受信者サーバーからの配信レポートを受信',
+                            timestamp: '2024-01-15T09:31:47'
+                        }
+                    ],
+                    relatedEntities: [
+                        {
+                            id: 'project-001',
+                            name: '新システム開発案件',
+                            type: 'PROJECT'
+                        },
+                        {
+                            id: 'engineer-123',
+                            name: '田中太郎',
+                            type: 'ENGINEER'
+                        }
+                    ]
+                },
+
+                getStatusText(status) {
+                    const statusMap = {
+                        'PENDING': '送信待ち',
+                        'PROCESSING': '処理中',
+                        'SENT': '送信済み',
+                        'DELIVERED': '配信完了',
+                        'FAILED': '送信失敗',
+                        'CANCELLED': 'キャンセル'
+                    };
+                    return statusMap[status] || status;
+                },
+
+                getTimelineClass(status) {
+                    switch (status.status) {
+                        case 'DELIVERED':
+                        case 'SENT':
+                            return 'active';
+                        case 'FAILED':
+                            return 'failed';
+                        case 'PENDING':
+                            return 'pending';
+                        default:
+                            return '';
+                    }
+                },
+
+                formatDateTime(dateTime) {
+                    if (!dateTime) return '-';
+                    return new Date(dateTime).toLocaleString('ja-JP');
+                },
+
+                retryNotification() {
+                    if (confirm('この通知を再送信しますか？')) {
+                        alert('再送信処理を開始しました。');
+                        // 実際の再送信処理をここに実装
+                    }
+                },
+
+                cancelNotification() {
+                    if (confirm('この通知をキャンセルしますか？')) {
+                        alert('通知をキャンセルしました。');
+                        // 実際のキャンセル処理をここに実装
+                    }
+                },
+
+                duplicateNotification() {
+                    alert('通知の複製機能（実装予定）');
+                },
+
+                downloadLog() {
+                    alert('ログダウンロード機能（実装予定）');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ダッシュボード・KPI表示 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+            --ses-dark: #212529;
+            --kpi-achieved: #00b894;
+            --kpi-warning: #fdcb6e;
+            --kpi-danger: #e17055;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+            background: #f8f9fa;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--ses-primary), #0a58ca);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(50%, -50%);
+        }
+        
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .stat-trend {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .kpi-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.5rem 2rem rgba(0,0,0,0.15);
+        }
+        
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .kpi-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--ses-dark);
+        }
+        
+        .kpi-status {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .kpi-status.achieved { background: var(--kpi-achieved); }
+        .kpi-status.warning { background: var(--kpi-warning); }
+        .kpi-status.danger { background: var(--kpi-danger); }
+        
+        .kpi-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: var(--ses-primary);
+        }
+        
+        .kpi-target {
+            font-size: 0.9rem;
+            color: var(--ses-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .kpi-progress {
+            position: relative;
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        
+        .kpi-progress-bar {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.8s ease;
+            position: relative;
+        }
+        
+        .kpi-progress-bar.achieved {
+            background: linear-gradient(90deg, var(--kpi-achieved), #00cec9);
+        }
+        
+        .kpi-progress-bar.warning {
+            background: linear-gradient(90deg, var(--kpi-warning), #e84393);
+        }
+        
+        .kpi-progress-bar.danger {
+            background: linear-gradient(90deg, var(--kpi-danger), #a29bfe);
+        }
+        
+        .kpi-chart {
+            height: 80px;
+            margin-top: 1rem;
+        }
+        
+        .widget-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1.5rem;
+        }
+        
+        .widget {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .widget-header {
+            padding: 1.5rem 1.5rem 0 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .widget-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--ses-dark);
+        }
+        
+        .widget-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .widget-body {
+            padding: 1.5rem;
+        }
+        
+        .widget-chart {
+            height: 300px;
+            position: relative;
+        }
+        
+        .widget-chart.small {
+            height: 200px;
+        }
+        
+        .widget-chart.large {
+            height: 400px;
+        }
+        
+        .col-span-3 { grid-column: span 3; }
+        .col-span-4 { grid-column: span 4; }
+        .col-span-6 { grid-column: span 6; }
+        .col-span-8 { grid-column: span 8; }
+        .col-span-12 { grid-column: span 12; }
+        
+        .metric-card {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s;
+        }
+        
+        .metric-card:hover {
+            border-color: var(--ses-primary);
+            transform: translateY(-2px);
+        }
+        
+        .metric-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+            color: white;
+        }
+        
+        .metric-icon.revenue { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .metric-icon.projects { background: linear-gradient(135deg, #f093fb, #f5576c); }
+        .metric-icon.engineers { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+        .metric-icon.satisfaction { background: linear-gradient(135deg, #43e97b, #38f9d7); }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--ses-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--ses-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-change {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .metric-change.positive {
+            color: var(--ses-success);
+        }
+        
+        .metric-change.negative {
+            color: var(--ses-danger);
+        }
+        
+        .metric-change.neutral {
+            color: var(--ses-secondary);
+        }
+        
+        .dashboard-controls {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .period-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .period-btn {
+            background: none;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            color: var(--ses-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .period-btn.active {
+            background: var(--ses-primary);
+            border-color: var(--ses-primary);
+            color: white;
+        }
+        
+        .period-btn:hover {
+            border-color: var(--ses-primary);
+            color: var(--ses-primary);
+        }
+        
+        .refresh-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--ses-secondary);
+        }
+        
+        .refresh-indicator.updating {
+            color: var(--ses-primary);
+        }
+        
+        .refresh-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--ses-success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .alert-banner {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            border-radius: 1rem;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .alert-banner.warning {
+            background: linear-gradient(135deg, #ffa726, #ffcc02);
+            color: #333;
+        }
+        
+        .alert-banner.success {
+            background: linear-gradient(135deg, #66bb6a, #43a047);
+        }
+        
+        .floating-actions {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        
+        .floating-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+            margin-bottom: 0.5rem;
+            border: none;
+            transition: all 0.3s;
+        }
+        
+        .floating-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .kpi-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .widget-grid {
+                grid-template-columns: 1fr;
+            }
+            .widget {
+                grid-column: span 1 !important;
+            }
+            .quick-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .stat-number {
+                font-size: 2rem;
+            }
+            .kpi-value {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body x-data="dashboard" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>管理者 田中
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            
+            <!-- アラートバナー -->
+            <div class="alert-banner warning" x-show="alerts.length > 0">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div>
+                    <strong>注意:</strong> 
+                    <span x-text="alerts[0]?.message"></span>
+                </div>
+                <button class="btn btn-link text-dark ms-auto" @click="dismissAlert(0)">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            
+            <!-- ダッシュボードヘッダー -->
+            <div class="dashboard-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="h2 mb-2">📊 SES経営ダッシュボード</h1>
+                        <p class="mb-0 opacity-75">リアルタイム経営指標とKPI監視</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="refresh-indicator" :class="{ updating: isUpdating }">
+                            <div class="refresh-dot"></div>
+                            <span x-text="lastUpdated"></span>
+                        </div>
+                        <div class="small mt-1">
+                            次回更新: <span x-text="nextUpdate"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- クイック統計 -->
+                <div class="quick-stats">
+                    <div class="stat-card" @click="navigateToRevenue()">
+                        <div class="stat-number" x-text="formatCurrency(quickStats.revenue)"></div>
+                        <div class="stat-label">今月売上</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="quickStats.revenueTrend.icon"></i>
+                            <span x-text="quickStats.revenueTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card" @click="navigateToProjects()">
+                        <div class="stat-number" x-text="quickStats.activeProjects"></div>
+                        <div class="stat-label">稼働案件数</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="quickStats.projectsTrend.icon"></i>
+                            <span x-text="quickStats.projectsTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card" @click="navigateToEngineers()">
+                        <div class="stat-number" x-text="quickStats.activeEngineers"></div>
+                        <div class="stat-label">稼働技術者数</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="quickStats.engineersTrend.icon"></i>
+                            <span x-text="quickStats.engineersTrend.text"></span>
+                        </div>
+                    </div>
+                    <div class="stat-card" @click="navigateToUtilization()">
+                        <div class="stat-number" x-text="quickStats.utilization + '%'"></div>
+                        <div class="stat-label">稼働率</div>
+                        <div class="stat-trend">
+                            <i class="bi" :class="quickStats.utilizationTrend.icon"></i>
+                            <span x-text="quickStats.utilizationTrend.text"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ダッシュボードコントロール -->
+            <div class="dashboard-controls">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex gap-3 align-items-center">
+                        <div>
+                            <label class="form-label mb-0 me-2">表示期間:</label>
+                            <div class="period-selector">
+                                <button class="period-btn" :class="{ active: selectedPeriod === 'today' }" 
+                                        @click="changePeriod('today')">今日</button>
+                                <button class="period-btn" :class="{ active: selectedPeriod === 'week' }" 
+                                        @click="changePeriod('week')">今週</button>
+                                <button class="period-btn" :class="{ active: selectedPeriod === 'month' }" 
+                                        @click="changePeriod('month')">今月</button>
+                                <button class="period-btn" :class="{ active: selectedPeriod === 'quarter' }" 
+                                        @click="changePeriod('quarter')">四半期</button>
+                                <button class="period-btn" :class="{ active: selectedPeriod === 'year' }" 
+                                        @click="changePeriod('year')">年間</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label mb-0 me-2">比較:</label>
+                            <select class="form-select form-select-sm" x-model="comparisonPeriod">
+                                <option value="previous">前期比</option>
+                                <option value="same_last_year">前年同期比</option>
+                                <option value="none">比較なし</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary btn-sm" @click="refreshDashboard()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>更新
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" @click="customizeDashboard()">
+                            <i class="bi bi-gear me-1"></i>カスタマイズ
+                        </button>
+                        <button class="btn btn-primary btn-sm" @click="exportDashboard()">
+                            <i class="bi bi-download me-1"></i>エクスポート
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- KPIカード -->
+            <div class="kpi-grid">
+                <template x-for="kpi in kpis" :key="kpi.id">
+                    <div class="kpi-card" @click="viewKPIDetails(kpi.id)">
+                        <div class="kpi-header">
+                            <div class="kpi-title" x-text="kpi.name"></div>
+                            <div class="kpi-status" :class="kpi.status"></div>
+                        </div>
+                        <div class="kpi-value" x-text="formatKPIValue(kpi.value, kpi.unit)"></div>
+                        <div class="kpi-target">
+                            目標: <span x-text="formatKPIValue(kpi.target, kpi.unit)"></span>
+                        </div>
+                        <div class="kpi-progress">
+                            <div class="kpi-progress-bar" :class="kpi.status" 
+                                 :style="`width: ${kpi.achievementRate}%`"></div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted">達成率: <span x-text="kpi.achievementRate + '%'"></span></small>
+                            <small class="text-muted" x-text="kpi.period"></small>
+                        </div>
+                        <div class="kpi-chart">
+                            <canvas :id="'kpi-chart-' + kpi.id"></canvas>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- ウィジェットグリッド -->
+            <div class="widget-grid">
+                <!-- 売上推移チャート -->
+                <div class="widget col-span-6">
+                    <div class="widget-header">
+                        <h5 class="widget-title">月次売上推移</h5>
+                        <div class="widget-actions">
+                            <button class="btn btn-outline-secondary btn-sm" @click="refreshWidget('revenue')">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @click="configureWidget('revenue')">
+                                <i class="bi bi-gear"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="widget-body">
+                        <div class="widget-chart">
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- プロジェクト状況 -->
+                <div class="widget col-span-3">
+                    <div class="widget-header">
+                        <h5 class="widget-title">プロジェクト状況</h5>
+                        <div class="widget-actions">
+                            <button class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="widget-body">
+                        <div class="widget-chart small">
+                            <canvas id="projectStatusChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 技術者稼働率 -->
+                <div class="widget col-span-3">
+                    <div class="widget-header">
+                        <h5 class="widget-title">技術者稼働率</h5>
+                        <div class="widget-actions">
+                            <button class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="widget-body">
+                        <div class="widget-chart small">
+                            <canvas id="utilizationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 重要指標 -->
+                <div class="widget col-span-4">
+                    <div class="widget-header">
+                        <h5 class="widget-title">重要指標</h5>
+                    </div>
+                    <div class="widget-body">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="metric-card">
+                                    <div class="metric-icon revenue">
+                                        <i class="bi bi-currency-yen"></i>
+                                    </div>
+                                    <div class="metric-value" x-text="formatCurrency(metrics.revenue)"></div>
+                                    <div class="metric-label">月売上</div>
+                                    <div class="metric-change positive">
+                                        <i class="bi bi-arrow-up"></i> +12.5%
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-card">
+                                    <div class="metric-icon projects">
+                                        <i class="bi bi-folder"></i>
+                                    </div>
+                                    <div class="metric-value" x-text="metrics.newProjects"></div>
+                                    <div class="metric-label">新規案件</div>
+                                    <div class="metric-change positive">
+                                        <i class="bi bi-arrow-up"></i> +8.3%
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-card">
+                                    <div class="metric-icon engineers">
+                                        <i class="bi bi-people"></i>
+                                    </div>
+                                    <div class="metric-value" x-text="metrics.newEngineers"></div>
+                                    <div class="metric-label">新規技術者</div>
+                                    <div class="metric-change neutral">
+                                        <i class="bi bi-dash"></i> +0.2%
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-card">
+                                    <div class="metric-icon satisfaction">
+                                        <i class="bi bi-star"></i>
+                                    </div>
+                                    <div class="metric-value" x-text="metrics.satisfaction"></div>
+                                    <div class="metric-label">満足度</div>
+                                    <div class="metric-change positive">
+                                        <i class="bi bi-arrow-up"></i> +5.7%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- マッチング効率 -->
+                <div class="widget col-span-4">
+                    <div class="widget-header">
+                        <h5 class="widget-title">マッチング効率</h5>
+                    </div>
+                    <div class="widget-body">
+                        <div class="widget-chart">
+                            <canvas id="matchingChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- アクティビティフィード -->
+                <div class="widget col-span-4">
+                    <div class="widget-header">
+                        <h5 class="widget-title">最近のアクティビティ</h5>
+                    </div>
+                    <div class="widget-body">
+                        <div class="activity-feed">
+                            <template x-for="activity in activities" :key="activity.id">
+                                <div class="activity-item d-flex gap-3 mb-3">
+                                    <div class="activity-icon">
+                                        <i class="bi" :class="activity.icon" :style="`color: ${activity.color}`"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="activity-content" x-text="activity.message"></div>
+                                        <small class="text-muted" x-text="formatRelativeTime(activity.timestamp)"></small>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- フローティングアクション -->
+    <div class="floating-actions">
+        <button class="btn btn-success floating-button" @click="createReport()" title="新規レポート作成">
+            <i class="bi bi-plus"></i>
+        </button>
+        <button class="btn btn-primary floating-button" @click="refreshAll()" title="全データ更新">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('dashboard', () => ({
+                selectedPeriod: 'month',
+                comparisonPeriod: 'previous',
+                isUpdating: false,
+                lastUpdated: '15:30',
+                nextUpdate: '16:00',
+                
+                alerts: [
+                    {
+                        id: 1,
+                        type: 'warning',
+                        message: '3つのKPIが目標を下回っています。詳細を確認してください。'
+                    }
+                ],
+                
+                quickStats: {
+                    revenue: 85000000,
+                    revenueTrend: { icon: 'bi-arrow-up', text: '+12.5%' },
+                    activeProjects: 28,
+                    projectsTrend: { icon: 'bi-arrow-up', text: '+3件' },
+                    activeEngineers: 156,
+                    engineersTrend: { icon: 'bi-arrow-up', text: '+8名' },
+                    utilization: 92.3,
+                    utilizationTrend: { icon: 'bi-arrow-up', text: '+2.1%' }
+                },
+                
+                kpis: [
+                    {
+                        id: 'revenue-growth',
+                        name: '売上成長率',
+                        value: 12.5,
+                        target: 15.0,
+                        unit: '%',
+                        achievementRate: 83.3,
+                        status: 'warning',
+                        period: '2025年6月'
+                    },
+                    {
+                        id: 'utilization-rate',
+                        name: '技術者稼働率',
+                        value: 92.3,
+                        target: 90.0,
+                        unit: '%',
+                        achievementRate: 102.6,
+                        status: 'achieved',
+                        period: '2025年6月'
+                    },
+                    {
+                        id: 'client-satisfaction',
+                        name: '顧客満足度',
+                        value: 4.2,
+                        target: 4.5,
+                        unit: '点',
+                        achievementRate: 93.3,
+                        status: 'warning',
+                        period: '2025年6月'
+                    },
+                    {
+                        id: 'project-success-rate',
+                        name: 'プロジェクト成功率',
+                        value: 87.5,
+                        target: 85.0,
+                        unit: '%',
+                        achievementRate: 102.9,
+                        status: 'achieved',
+                        period: '2025年6月'
+                    },
+                    {
+                        id: 'matching-efficiency',
+                        name: 'マッチング効率',
+                        value: 68.2,
+                        target: 75.0,
+                        unit: '%',
+                        achievementRate: 91.0,
+                        status: 'warning',
+                        period: '2025年6月'
+                    },
+                    {
+                        id: 'profit-margin',
+                        name: '利益率',
+                        value: 18.7,
+                        target: 20.0,
+                        unit: '%',
+                        achievementRate: 93.5,
+                        status: 'warning',
+                        period: '2025年6月'
+                    }
+                ],
+                
+                metrics: {
+                    revenue: 85000000,
+                    newProjects: 8,
+                    newEngineers: 12,
+                    satisfaction: 4.2
+                },
+                
+                activities: [
+                    {
+                        id: 1,
+                        icon: 'bi-folder-plus',
+                        color: '#0d6efd',
+                        message: '新規案件「ECサイトリニューアル」が登録されました',
+                        timestamp: '2025-06-01T15:20:00'
+                    },
+                    {
+                        id: 2,
+                        icon: 'bi-person-plus',
+                        color: '#198754',
+                        message: '技術者「田中太郎」が新規登録されました',
+                        timestamp: '2025-06-01T14:45:00'
+                    },
+                    {
+                        id: 3,
+                        icon: 'bi-check-circle',
+                        color: '#20c997',
+                        message: '案件「基幹システム開発」が完了しました',
+                        timestamp: '2025-06-01T13:30:00'
+                    },
+                    {
+                        id: 4,
+                        icon: 'bi-heart',
+                        color: '#dc3545',
+                        message: 'マッチング「山田花子→モバイルアプリ開発」が成立しました',
+                        timestamp: '2025-06-01T12:15:00'
+                    }
+                ],
+                
+                init() {
+                    this.initializeCharts();
+                    this.startAutoRefresh();
+                },
+                
+                formatCurrency(value) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY',
+                        minimumFractionDigits: 0
+                    }).format(value);
+                },
+                
+                formatKPIValue(value, unit) {
+                    if (unit === '%') {
+                        return value.toFixed(1) + '%';
+                    } else if (unit === '点') {
+                        return value.toFixed(1) + '点';
+                    }
+                    return value.toString();
+                },
+                
+                formatRelativeTime(timestamp) {
+                    const now = new Date();
+                    const time = new Date(timestamp);
+                    const diff = Math.floor((now - time) / 1000 / 60);
+                    
+                    if (diff < 60) {
+                        return `${diff}分前`;
+                    } else if (diff < 1440) {
+                        return `${Math.floor(diff / 60)}時間前`;
+                    } else {
+                        return `${Math.floor(diff / 1440)}日前`;
+                    }
+                },
+                
+                changePeriod(period) {
+                    this.selectedPeriod = period;
+                    this.refreshDashboard();
+                },
+                
+                refreshDashboard() {
+                    this.isUpdating = true;
+                    console.log('ダッシュボード更新中...');
+                    
+                    setTimeout(() => {
+                        this.isUpdating = false;
+                        this.lastUpdated = new Date().toLocaleTimeString('ja-JP', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    }, 2000);
+                },
+                
+                startAutoRefresh() {
+                    setInterval(() => {
+                        if (!this.isUpdating) {
+                            this.refreshDashboard();
+                        }
+                    }, 300000); // 5分間隔
+                },
+                
+                dismissAlert(index) {
+                    this.alerts.splice(index, 1);
+                },
+                
+                viewKPIDetails(kpiId) {
+                    console.log('KPI詳細表示:', kpiId);
+                },
+                
+                navigateToRevenue() {
+                    console.log('売上詳細へ遷移');
+                },
+                
+                navigateToProjects() {
+                    console.log('案件一覧へ遷移');
+                },
+                
+                navigateToEngineers() {
+                    console.log('技術者一覧へ遷移');
+                },
+                
+                navigateToUtilization() {
+                    console.log('稼働率詳細へ遷移');
+                },
+                
+                customizeDashboard() {
+                    console.log('ダッシュボードカスタマイズ');
+                },
+                
+                exportDashboard() {
+                    console.log('ダッシュボードエクスポート');
+                },
+                
+                refreshWidget(widgetId) {
+                    console.log('ウィジェット更新:', widgetId);
+                },
+                
+                configureWidget(widgetId) {
+                    console.log('ウィジェット設定:', widgetId);
+                },
+                
+                createReport() {
+                    console.log('新規レポート作成');
+                },
+                
+                refreshAll() {
+                    console.log('全データ更新');
+                    this.refreshDashboard();
+                },
+                
+                initializeCharts() {
+                    this.$nextTick(() => {
+                        this.createRevenueChart();
+                        this.createProjectStatusChart();
+                        this.createUtilizationChart();
+                        this.createMatchingChart();
+                        this.createKPICharts();
+                    });
+                },
+                
+                createRevenueChart() {
+                    const ctx = document.getElementById('revenueChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '売上',
+                                data: [65000000, 72000000, 68000000, 75000000, 80000000, 85000000],
+                                borderColor: '#0d6efd',
+                                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }, {
+                                label: '目標',
+                                data: [70000000, 70000000, 70000000, 70000000, 70000000, 70000000],
+                                borderColor: '#dc3545',
+                                borderDash: [5, 5],
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return (value / 1000000) + 'M円';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createProjectStatusChart() {
+                    const ctx = document.getElementById('projectStatusChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['進行中', '完了', '保留', '計画中'],
+                            datasets: [{
+                                data: [18, 8, 2, 5],
+                                backgroundColor: [
+                                    '#0d6efd',
+                                    '#198754',
+                                    '#ffc107',
+                                    '#6c757d'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createUtilizationChart() {
+                    const ctx = document.getElementById('utilizationChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['第1週', '第2週', '第3週', '第4週'],
+                            datasets: [{
+                                label: '稼働率',
+                                data: [89.2, 93.1, 91.7, 94.5],
+                                backgroundColor: '#198754'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createMatchingChart() {
+                    const ctx = document.getElementById('matchingChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '成立率',
+                                data: [65, 68, 72, 70, 75, 68],
+                                borderColor: '#20c997',
+                                backgroundColor: 'rgba(32, 201, 151, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                createKPICharts() {
+                    this.kpis.forEach(kpi => {
+                        const ctx = document.getElementById(`kpi-chart-${kpi.id}`);
+                        if (!ctx) return;
+                        
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                                datasets: [{
+                                    data: this.generateKPITrendData(kpi.value),
+                                    borderColor: this.getKPIColor(kpi.status),
+                                    backgroundColor: 'transparent',
+                                    tension: 0.4,
+                                    pointRadius: 0,
+                                    borderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: false
+                                    },
+                                    y: {
+                                        display: false
+                                    }
+                                },
+                                elements: {
+                                    point: {
+                                        radius: 0
+                                    }
+                                }
+                            }
+                        });
+                    });
+                },
+                
+                generateKPITrendData(currentValue) {
+                    const baseValue = currentValue * 0.8;
+                    return [
+                        baseValue + Math.random() * 10,
+                        baseValue + Math.random() * 15,
+                        baseValue + Math.random() * 12,
+                        baseValue + Math.random() * 18,
+                        baseValue + Math.random() * 16,
+                        currentValue
+                    ];
+                },
+                
+                getKPIColor(status) {
+                    const colors = {
+                        'achieved': '#00b894',
+                        'warning': '#fdcb6e',
+                        'danger': '#e17055'
+                    };
+                    return colors[status] || '#6c757d';
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マッチング履歴・統計 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .kpi-card {
+            background: linear-gradient(135deg, var(--ses-primary), #0a58ca);
+            color: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            text-align: center;
+            border: none;
+        }
+        
+        .kpi-card.success {
+            background: linear-gradient(135deg, var(--ses-success), #20c997);
+        }
+        
+        .kpi-card.warning {
+            background: linear-gradient(135deg, var(--ses-warning), #ffcd39);
+            color: #000;
+        }
+        
+        .kpi-card.info {
+            background: linear-gradient(135deg, #0dcaf0, #3dd5f3);
+            color: #000;
+        }
+        
+        .kpi-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .kpi-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .kpi-trend {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 0.5rem;
+            border: 1px solid #dee2e6;
+            padding: 1.5rem;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chart-placeholder {
+            text-align: center;
+            color: #6c757d;
+        }
+        
+        .history-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s;
+        }
+        
+        .history-item:hover {
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.1);
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .status-COMPLETED {
+            background: var(--ses-success);
+        }
+        
+        .status-EXECUTING {
+            background: var(--ses-warning);
+        }
+        
+        .status-FAILED {
+            background: var(--ses-danger);
+        }
+        
+        .status-CANCELLED {
+            background: var(--ses-secondary);
+        }
+        
+        .status-EXPIRED {
+            background: #6c757d;
+        }
+        
+        .status-REQUESTED {
+            background: #0dcaf0;
+        }
+        
+        .filter-tabs {
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-tab {
+            background: transparent;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            color: #6c757d;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .filter-tab.active {
+            background: white;
+            color: var(--ses-primary);
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+        }
+        
+        .success-rate-meter {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+        }
+        
+        .meter-circle {
+            fill: none;
+            stroke: #e9ecef;
+            stroke-width: 8;
+        }
+        
+        .meter-progress {
+            fill: none;
+            stroke: var(--ses-success);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            transition: stroke-dashoffset 1s ease;
+        }
+        
+        .meter-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--ses-success);
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+            padding-bottom: 1.5rem;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0.5rem;
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            background: var(--ses-primary);
+        }
+        
+        .timeline-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 0.875rem;
+            top: 1.25rem;
+            width: 2px;
+            height: calc(100% - 0.75rem);
+            background: #dee2e6;
+        }
+        
+        .skill-ranking {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .skill-ranking:last-child {
+            border-bottom: none;
+        }
+        
+        .skill-bar {
+            width: 100px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .skill-progress {
+            height: 100%;
+            background: var(--ses-primary);
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body x-data="matchingHistory" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">マッチング</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">履歴・統計</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">マッチング履歴・統計</h1>
+                    <p class="text-muted mb-0">マッチング実績の分析と傾向把握</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-calendar me-1"></i>期間: <span x-text="selectedPeriod.label"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <template x-for="period in periods" :key="period.value">
+                                <li><a class="dropdown-item" href="#" @click="selectPeriod(period)" x-text="period.label"></a></li>
+                            </template>
+                        </ul>
+                    </div>
+                    <button class="btn btn-outline-primary" @click="exportReport()">
+                        <i class="bi bi-download me-1"></i>レポート出力
+                    </button>
+                    <button class="btn btn-primary" @click="newMatching()">
+                        <i class="bi bi-plus me-1"></i>新規マッチング
+                    </button>
+                </div>
+            </div>
+            
+            <!-- KPI ダッシュボード -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card kpi-card">
+                        <div class="kpi-number" x-text="kpiData.totalMatching"></div>
+                        <div class="kpi-label">総マッチング数</div>
+                        <div class="kpi-trend">
+                            <i class="bi bi-arrow-up"></i> +12% 前月比
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card kpi-card success">
+                        <div class="kpi-number" x-text="`${kpiData.successRate}%`"></div>
+                        <div class="kpi-label">成功率</div>
+                        <div class="kpi-trend">
+                            <i class="bi bi-arrow-up"></i> +5% 前月比
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card kpi-card warning">
+                        <div class="kpi-number" x-text="`${kpiData.avgTime}日`"></div>
+                        <div class="kpi-label">平均マッチング時間</div>
+                        <div class="kpi-trend">
+                            <i class="bi bi-arrow-down"></i> -2日 前月比
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card kpi-card info">
+                        <div class="kpi-number" x-text="`${kpiData.avgCandidates}名`"></div>
+                        <div class="kpi-label">平均候補者数</div>
+                        <div class="kpi-trend">
+                            <i class="bi bi-arrow-up"></i> +3名 前月比
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- マッチング成功率推移 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-graph-up me-2"></i>マッチング成功率推移
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <div class="chart-placeholder">
+                                    <i class="bi bi-bar-chart" style="font-size: 3rem;"></i>
+                                    <div class="mt-2">マッチング成功率の月次推移グラフ</div>
+                                    <div class="small text-muted">Chart.js または D3.js で実装</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- スキル別マッチング分析 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-cpu me-2"></i>スキル別マッチング分析
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <div class="chart-placeholder">
+                                    <i class="bi bi-pie-chart" style="font-size: 3rem;"></i>
+                                    <div class="mt-2">スキル別マッチング成功率</div>
+                                    <div class="small text-muted">円グラフ + 棒グラフ</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- マッチング履歴 -->
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history me-2"></i>マッチング履歴
+                            </h5>
+                            <div class="filter-tabs">
+                                <button class="filter-tab" :class="{ 'active': historyFilter === 'all' }" @click="historyFilter = 'all'">
+                                    すべて
+                                </button>
+                                <button class="filter-tab" :class="{ 'active': historyFilter === 'COMPLETED' }" @click="historyFilter = 'COMPLETED'">
+                                    完了
+                                </button>
+                                <button class="filter-tab" :class="{ 'active': historyFilter === 'EXECUTING' }" @click="historyFilter = 'EXECUTING'">
+                                    実行中
+                                </button>
+                                <button class="filter-tab" :class="{ 'active': historyFilter === 'FAILED' }" @click="historyFilter = 'FAILED'">
+                                    失敗
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <template x-for="history in filteredHistory" :key="history.id">
+                                <div class="history-item">
+                                    <div class="d-flex align-items-start justify-content-between">
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="status-indicator" :class="`status-${history.status}`"></span>
+                                                <h6 class="mb-0 me-3" x-text="history.projectName"></h6>
+                                                <span class="badge" :class="getStatusBadgeClass(history.status)" x-text="getStatusText(history.status)"></span>
+                                            </div>
+                                            <div class="row g-3 small text-muted">
+                                                <div class="col-md-3">
+                                                    <strong>実行日:</strong> <span x-text="formatDate(history.executedAt)"></span>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <strong>候補者数:</strong> <span x-text="`${history.candidateCount}名`"></span>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <strong>採用者数:</strong> <span x-text="`${history.hiredCount}名`"></span>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <strong>成功率:</strong> <span x-text="`${history.successRate}%`"></span>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 small">
+                                                <strong>対象スキル:</strong> 
+                                                <template x-for="skill in history.targetSkills" :key="skill">
+                                                    <span class="badge bg-light text-dark me-1" x-text="skill"></span>
+                                                </template>
+                                            </div>
+                                            <div x-show="history.note" class="mt-2 small text-muted">
+                                                <strong>備考:</strong> <span x-text="history.note"></span>
+                                            </div>
+                                        </div>
+                                        <div class="ms-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" @click="viewDetails(history.id)">
+                                                    <i class="bi bi-eye"></i> 詳細
+                                                </button>
+                                                <button class="btn btn-outline-secondary" @click="retryMatching(history.id)" x-show="history.status === 'FAILED' || history.status === 'CANCELLED' || history.status === 'EXPIRED'">
+                                                    <i class="bi bi-arrow-repeat"></i> 再実行
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- サイドパネル -->
+                <div class="col-lg-4">
+                    <!-- 今月の成功率 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-target me-2"></i>今月の成功率
+                            </h6>
+                        </div>
+                        <div class="card-body text-center">
+                            <div class="success-rate-meter">
+                                <svg width="120" height="120">
+                                    <circle class="meter-circle" cx="60" cy="60" r="45"></circle>
+                                    <circle class="meter-progress" cx="60" cy="60" r="45" 
+                                            :style="`stroke-dashoffset: ${283 - (283 * kpiData.successRate / 100)}`"></circle>
+                                </svg>
+                                <div class="meter-text" x-text="`${kpiData.successRate}%`"></div>
+                            </div>
+                            <div class="mt-3 small text-muted">
+                                目標: 80% | 前月: 73%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 人気スキルランキング -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-trophy me-2"></i>人気スキルランキング
+                            </h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <template x-for="(skill, index) in skillRanking" :key="skill.name">
+                                <div class="skill-ranking">
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge bg-primary me-2" x-text="index + 1"></span>
+                                        <span x-text="skill.name"></span>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="skill-bar me-2">
+                                            <div class="skill-progress" :style="`width: ${skill.popularity}%`"></div>
+                                        </div>
+                                        <span class="small text-muted" x-text="`${skill.count}件`"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- 最近のアクティビティ -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-activity me-2"></i>最近のアクティビティ
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <template x-for="activity in recentActivities" :key="activity.id">
+                                <div class="timeline-item">
+                                    <div class="small">
+                                        <div class="fw-medium" x-text="activity.title"></div>
+                                        <div class="text-muted" x-text="activity.description"></div>
+                                        <div class="text-muted" x-text="formatDateTime(activity.timestamp)"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('matchingHistory', () => ({
+                historyFilter: 'all',
+                selectedPeriod: { value: 'month', label: '今月' },
+                
+                periods: [
+                    { value: 'week', label: '今週' },
+                    { value: 'month', label: '今月' },
+                    { value: 'quarter', label: '今四半期' },
+                    { value: 'year', label: '今年' },
+                    { value: 'custom', label: 'カスタム' }
+                ],
+                
+                kpiData: {
+                    totalMatching: 127,
+                    successRate: 78,
+                    avgTime: 5,
+                    avgCandidates: 23
+                },
+                
+                matchingHistory: [
+                    {
+                        id: '123e4567-e89b-12d3-a456-426614174000',
+                        projectId: '123e4567-e89b-12d3-a456-426614174000',
+                        projectName: 'ECサイトリニューアル',
+                        status: 'COMPLETED',
+                        executedAt: '2025-06-01',
+                        candidateCount: 25,
+                        hiredCount: 3,
+                        successRate: 85,
+                        targetSkills: ['Java', 'Spring Boot', 'React'],
+                        note: '優秀な候補者が多数見つかり、予定より早く決定'
+                    },
+                    {
+                        id: '456e7890-e89b-12d3-a456-426614174001',
+                        projectId: '456e7890-e89b-12d3-a456-426614174001',
+                        projectName: '基幹システム更改',
+                        status: 'EXECUTING',
+                        executedAt: '2025-05-30',
+                        candidateCount: 18,
+                        hiredCount: 0,
+                        successRate: 0,
+                        targetSkills: ['C#', '.NET Core', 'SQL Server'],
+                        note: '候補者評価中'
+                    },
+                    {
+                        id: '789e0123-e89b-12d3-a456-426614174002',
+                        projectId: '789e0123-e89b-12d3-a456-426614174002',
+                        projectName: 'モバイルアプリ開発',
+                        status: 'COMPLETED',
+                        executedAt: '2025-05-28',
+                        candidateCount: 15,
+                        hiredCount: 2,
+                        successRate: 90,
+                        targetSkills: ['React Native', 'TypeScript', 'Firebase'],
+                        note: 'モバイル専門技術者の確保に成功'
+                    },
+                    {
+                        id: 'abc1234f-e89b-12d3-a456-426614174003',
+                        projectId: 'abc1234f-e89b-12d3-a456-426614174003',
+                        projectName: 'AIシステム開発',
+                        status: 'FAILED',
+                        executedAt: '2025-05-25',
+                        candidateCount: 8,
+                        hiredCount: 0,
+                        successRate: 0,
+                        targetSkills: ['Python', 'TensorFlow', 'AWS'],
+                        note: '希少スキルのため適切な候補者が見つからず'
+                    },
+                    {
+                        id: 'def5678a-e89b-12d3-a456-426614174004',
+                        projectId: 'def5678a-e89b-12d3-a456-426614174004',
+                        projectName: 'Webサイト制作',
+                        status: 'COMPLETED',
+                        executedAt: '2025-05-20',
+                        candidateCount: 32,
+                        hiredCount: 4,
+                        successRate: 75,
+                        targetSkills: ['HTML/CSS', 'JavaScript', 'WordPress'],
+                        note: '多数の候補者から適切な人材を選定'
+                    }
+                ],
+                
+                skillRanking: [
+                    { name: 'Java', count: 45, popularity: 100 },
+                    { name: 'JavaScript', count: 38, popularity: 84 },
+                    { name: 'Python', count: 32, popularity: 71 },
+                    { name: 'React', count: 28, popularity: 62 },
+                    { name: 'Spring Boot', count: 25, popularity: 56 },
+                    { name: 'AWS', count: 22, popularity: 49 },
+                    { name: 'PostgreSQL', count: 20, popularity: 44 },
+                    { name: 'TypeScript', count: 18, popularity: 40 }
+                ],
+                
+                recentActivities: [
+                    {
+                        id: 1,
+                        title: 'マッチング完了',
+                        description: 'ECサイトリニューアル - 3名採用決定',
+                        timestamp: '2025-06-01T14:30:00'
+                    },
+                    {
+                        id: 2,
+                        title: '候補者評価完了',
+                        description: '基幹システム更改 - 18名の評価が完了',
+                        timestamp: '2025-06-01T10:15:00'
+                    },
+                    {
+                        id: 3,
+                        title: 'マッチング実行',
+                        description: '新規Webアプリ開発のマッチングを開始',
+                        timestamp: '2025-05-31T16:45:00'
+                    },
+                    {
+                        id: 4,
+                        title: '候補者追加',
+                        description: 'React専門技術者5名を候補者プールに追加',
+                        timestamp: '2025-05-31T13:20:00'
+                    }
+                ],
+                
+                get filteredHistory() {
+                    if (this.historyFilter === 'all') {
+                        return this.matchingHistory;
+                    }
+                    return this.matchingHistory.filter(h => h.status === this.historyFilter);
+                },
+                
+                selectPeriod(period) {
+                    this.selectedPeriod = period;
+                    this.loadDataForPeriod(period.value);
+                },
+                
+                loadDataForPeriod(period) {
+                    console.log('期間変更:', period);
+                    // 実際の実装では期間に応じてデータを再取得
+                },
+                
+                getStatusText(status) {
+                    switch (status) {
+                        case 'COMPLETED': return '完了';
+                        case 'EXECUTING': return '実行中';
+                        case 'FAILED': return '失敗';
+                        case 'CANCELLED': return 'キャンセル';
+                        case 'EXPIRED': return '期限切れ';
+                        case 'REQUESTED': return 'リクエスト中';
+                        default: return '不明';
+                    }
+                },
+                
+                getStatusBadgeClass(status) {
+                    switch (status) {
+                        case 'COMPLETED': return 'bg-success';
+                        case 'EXECUTING': return 'bg-warning';
+                        case 'FAILED': return 'bg-danger';
+                        case 'CANCELLED': return 'bg-secondary';
+                        case 'EXPIRED': return 'bg-dark';
+                        case 'REQUESTED': return 'bg-info';
+                        default: return 'bg-secondary';
+                    }
+                },
+                
+                viewDetails(historyId) {
+                    console.log('詳細表示:', historyId);
+                },
+                
+                retryMatching(historyId) {
+                    console.log('マッチング再実行:', historyId);
+                    if (confirm('このマッチングを再実行しますか？')) {
+                        // 実際の実装では再実行処理
+                        alert('マッチングの再実行を開始しました');
+                    }
+                },
+                
+                exportReport() {
+                    console.log('レポート出力');
+                    alert('マッチング履歴レポートをエクスポートしました');
+                },
+                
+                newMatching() {
+                    console.log('新規マッチング');
+                    // 検索・条件設定画面へリダイレクト
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric'
+                    });
+                },
+                
+                formatDateTime(dateStr) {
+                    return new Date(dateStr).toLocaleString('ja-JP', {
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>残業・有給申請 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+            --overtime-color: #ff6b6b;
+            --leave-color: #4ecdc4;
+            --special-color: #ffe66d;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .application-header {
+            background: linear-gradient(135deg, var(--ses-primary), #0a58ca);
+            color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .balance-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .balance-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .balance-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .application-card {
+            background: white;
+            border-radius: 1rem;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.05);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        
+        .application-card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+        
+        .application-card.overtime .application-card-header {
+            background: linear-gradient(135deg, var(--overtime-color), #ff5252);
+            color: white;
+        }
+        
+        .application-card.leave .application-card-header {
+            background: linear-gradient(135deg, var(--leave-color), #26a69a);
+            color: white;
+        }
+        
+        .application-card.special .application-card-header {
+            background: linear-gradient(135deg, var(--special-color), #ffc107);
+            color: #333;
+        }
+        
+        .application-card-body {
+            padding: 1.5rem;
+        }
+        
+        .application-type-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .type-option {
+            border: 2px solid #dee2e6;
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .type-option:hover {
+            border-color: var(--ses-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+        }
+        
+        .type-option.selected {
+            border-color: var(--ses-primary);
+            background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));
+        }
+        
+        .type-option.overtime.selected {
+            border-color: var(--overtime-color);
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 107, 107, 0.05));
+        }
+        
+        .type-option.leave.selected {
+            border-color: var(--leave-color);
+            background: linear-gradient(135deg, rgba(78, 205, 196, 0.1), rgba(78, 205, 196, 0.05));
+        }
+        
+        .type-option.special.selected {
+            border-color: var(--special-color);
+            background: linear-gradient(135deg, rgba(255, 230, 109, 0.1), rgba(255, 230, 109, 0.05));
+        }
+        
+        .type-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .type-option.overtime .type-icon { color: var(--overtime-color); }
+        .type-option.leave .type-icon { color: var(--leave-color); }
+        .type-option.special .type-icon { color: var(--special-color); }
+        
+        .calendar-widget {
+            background: white;
+            border-radius: 1rem;
+            border: 1px solid #dee2e6;
+            overflow: hidden;
+        }
+        
+        .calendar-header {
+            background: var(--ses-light);
+            padding: 1rem;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        
+        .calendar-day-header {
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-right: 1px solid #dee2e6;
+            text-align: center;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        
+        .calendar-day-header:last-child {
+            border-right: none;
+        }
+        
+        .calendar-day {
+            min-height: 60px;
+            border-bottom: 1px solid #dee2e6;
+            border-right: 1px solid #dee2e6;
+            position: relative;
+            padding: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .calendar-day:last-child {
+            border-right: none;
+        }
+        
+        .calendar-day:hover {
+            background-color: rgba(13, 110, 253, 0.05);
+        }
+        
+        .calendar-day.other-month {
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+        
+        .calendar-day.today {
+            background-color: rgba(13, 110, 253, 0.1);
+            font-weight: bold;
+        }
+        
+        .calendar-day.weekend {
+            background-color: rgba(220, 53, 69, 0.05);
+        }
+        
+        .calendar-day.holiday {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+        }
+        
+        .calendar-day.selected {
+            background-color: var(--ses-primary);
+            color: white;
+        }
+        
+        .calendar-day.applied {
+            background-color: var(--leave-color);
+            color: white;
+        }
+        
+        .calendar-day.pending {
+            background-color: var(--ses-warning);
+            color: #333;
+        }
+        
+        .day-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 2px;
+        }
+        
+        .indicator-applied { background: var(--leave-color); }
+        .indicator-pending { background: var(--ses-warning); }
+        .indicator-overtime { background: var(--overtime-color); }
+        
+        .application-form {
+            background: white;
+            border-radius: 1rem;
+            border: 1px solid #dee2e6;
+            padding: 2rem;
+        }
+        
+        .form-section {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .form-section:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--ses-primary);
+        }
+        
+        .status-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .status-draft {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--ses-secondary);
+            border: 1px solid rgba(108, 117, 125, 0.25);
+        }
+        
+        .status-pending {
+            background: rgba(255, 193, 7, 0.1);
+            color: #b08800;
+            border: 1px solid rgba(255, 193, 7, 0.25);
+        }
+        
+        .status-approved {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--ses-success);
+            border: 1px solid rgba(25, 135, 84, 0.25);
+        }
+        
+        .status-rejected {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+            border: 1px solid rgba(220, 53, 69, 0.25);
+        }
+        
+        .application-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .application-item:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 0.25rem 0.5rem rgba(13, 110, 253, 0.1);
+        }
+        
+        .quick-apply {
+            background: linear-gradient(135deg, var(--ses-light), #e9ecef);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .quick-apply-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        
+        .quick-apply-btn {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-apply-btn:hover {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .remaining-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--ses-success);
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .warning-indicator {
+            background: rgba(255, 193, 7, 0.1);
+            color: #b08800;
+        }
+        
+        .danger-indicator {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--ses-danger);
+        }
+        
+        .filter-tabs {
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-tabs .nav-link {
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 1rem 1.5rem;
+            font-weight: 500;
+            color: var(--ses-secondary);
+            position: relative;
+        }
+        
+        .filter-tabs .nav-link.active {
+            color: var(--ses-primary);
+            border-bottom-color: var(--ses-primary);
+            background: none;
+        }
+        
+        .filter-tabs .nav-link .badge {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .balance-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .balance-number {
+                font-size: 2rem;
+            }
+            .application-type-selector {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body x-data="leaveApplication" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">勤怠管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">残業・有給申請</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">残業・有給申請</h1>
+                    <p class="text-muted mb-0">残業承認申請・有給休暇申請・特別休暇申請</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="refreshData()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>更新
+                    </button>
+                    <button class="btn btn-outline-primary" @click="exportApplicationData()">
+                        <i class="bi bi-download me-1"></i>申請履歴出力
+                    </button>
+                    <button class="btn btn-success" @click="showQuickApplication()">
+                        <i class="bi bi-plus-circle me-1"></i>新規申請
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 残高・統計 -->
+            <div class="application-header">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h4 class="mb-1">休暇残高・利用状況</h4>
+                        <p class="mb-0 opacity-75">2025年度の休暇取得状況</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-light btn-sm" @click="viewYearlyBalance()">
+                            <i class="bi bi-calendar me-1"></i>年間詳細
+                        </button>
+                        <button class="btn btn-light btn-sm" @click="openBalanceSettings()">
+                            <i class="bi bi-gear me-1"></i>設定
+                        </button>
+                    </div>
+                </div>
+                <div class="balance-grid">
+                    <div class="balance-card">
+                        <div class="balance-number" x-text="balances.paidLeave.remaining"></div>
+                        <div class="balance-label">有給残日数</div>
+                        <div class="small mt-2">
+                            取得済み: <span x-text="balances.paidLeave.used + '日'"></span>
+                        </div>
+                    </div>
+                    <div class="balance-card">
+                        <div class="balance-number" x-text="balances.compensatory.remaining"></div>
+                        <div class="balance-label">代休残日数</div>
+                        <div class="small mt-2">
+                            取得済み: <span x-text="balances.compensatory.used + '日'"></span>
+                        </div>
+                    </div>
+                    <div class="balance-card">
+                        <div class="balance-number" x-text="balances.overtime.thisMonth + 'h'"></div>
+                        <div class="balance-label">今月残業時間</div>
+                        <div class="small mt-2">
+                            上限: <span x-text="balances.overtime.limit + 'h'"></span>
+                        </div>
+                    </div>
+                    <div class="balance-card">
+                        <div class="balance-number" x-text="Math.round(balances.utilizationRate) + '%'"></div>
+                        <div class="balance-label">有給取得率</div>
+                        <div class="small mt-2">
+                            目標: 70%
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- クイック申請 -->
+            <div class="quick-apply" x-show="!showingApplicationForm">
+                <h5 class="mb-3">
+                    <i class="bi bi-lightning me-2"></i>クイック申請
+                </h5>
+                <div class="quick-apply-grid">
+                    <div class="quick-apply-btn" @click="quickApply('half-day-leave')">
+                        <i class="bi bi-calendar-date text-info" style="font-size: 1.5rem;"></i>
+                        <div class="mt-2">半日有給</div>
+                        <small class="text-muted">今日・明日</small>
+                    </div>
+                    <div class="quick-apply-btn" @click="quickApply('full-day-leave')">
+                        <i class="bi bi-calendar-x text-success" style="font-size: 1.5rem;"></i>
+                        <div class="mt-2">一日有給</div>
+                        <small class="text-muted">明日以降</small>
+                    </div>
+                    <div class="quick-apply-btn" @click="quickApply('overtime-pre')">
+                        <i class="bi bi-clock text-warning" style="font-size: 1.5rem;"></i>
+                        <div class="mt-2">残業申請</div>
+                        <small class="text-muted">事前申請</small>
+                    </div>
+                    <div class="quick-apply-btn" @click="quickApply('sick-leave')">
+                        <i class="bi bi-thermometer text-danger" style="font-size: 1.5rem;"></i>
+                        <div class="mt-2">病気休暇</div>
+                        <small class="text-muted">当日申請</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs filter-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#new-application-tab" 
+                            @click="currentTab = 'new'">
+                        <i class="bi bi-plus-circle me-2"></i>新規申請
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pending-tab"
+                            @click="currentTab = 'pending'">
+                        <i class="bi bi-clock me-2"></i>申請中
+                        <span class="badge bg-warning" x-text="applications.pending.length"></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#approved-tab"
+                            @click="currentTab = 'approved'">
+                        <i class="bi bi-check-circle me-2"></i>承認済み
+                        <span class="badge bg-success" x-text="applications.approved.length"></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#calendar-tab"
+                            @click="currentTab = 'calendar'">
+                        <i class="bi bi-calendar me-2"></i>カレンダー
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content mt-4">
+                <!-- 新規申請 -->
+                <div class="tab-pane fade show active" id="new-application-tab" x-show="currentTab === 'new'">
+                    <!-- 申請種別選択 -->
+                    <div class="application-type-selector" x-show="!applicationForm.type">
+                        <div class="type-option overtime" @click="selectApplicationType('overtime')">
+                            <div class="type-icon">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <h5>残業申請</h5>
+                            <p class="text-muted mb-0">事前・事後の残業承認申請</p>
+                        </div>
+                        <div class="type-option leave" @click="selectApplicationType('leave')">
+                            <div class="type-icon">
+                                <i class="bi bi-calendar-check"></i>
+                            </div>
+                            <h5>有給休暇申請</h5>
+                            <p class="text-muted mb-0">年次有給休暇の申請</p>
+                        </div>
+                        <div class="type-option special" @click="selectApplicationType('special')">
+                            <div class="type-icon">
+                                <i class="bi bi-heart-pulse"></i>
+                            </div>
+                            <h5>特別休暇申請</h5>
+                            <p class="text-muted mb-0">病気・慶弔・特別事由による休暇</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 申請フォーム -->
+                    <div class="application-form" x-show="applicationForm.type">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="mb-0">
+                                <i class="bi" :class="getApplicationIcon(applicationForm.type)" class="me-2"></i>
+                                <span x-text="getApplicationTitle(applicationForm.type)"></span>
+                            </h5>
+                            <button class="btn btn-outline-secondary" @click="resetApplicationForm()">
+                                <i class="bi bi-arrow-left me-1"></i>戻る
+                            </button>
+                        </div>
+                        
+                        <form @submit.prevent="submitApplication()">
+                            <!-- 共通項目 -->
+                            <div class="form-section">
+                                <div class="section-title">基本情報</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6" x-show="applicationForm.type === 'overtime'">
+                                        <label class="form-label">申請区分</label>
+                                        <select class="form-select" x-model="applicationForm.overtimeType">
+                                            <option value="pre">事前申請</option>
+                                            <option value="post">事後申請</option>
+                                            <option value="emergency">緊急申請</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.type === 'leave'">
+                                        <label class="form-label">休暇種別</label>
+                                        <select class="form-select" x-model="applicationForm.attendanceType">
+                                            <option value="PAID_LEAVE">年次有給休暇</option>
+                                            <option value="PAID_LEAVE">半日有給休暇</option>
+                                            <option value="PAID_LEAVE">時間単位有給</option>
+                                            <option value="SPECIAL_LEAVE">代休</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.type === 'special'">
+                                        <label class="form-label">特別休暇種別</label>
+                                        <select class="form-select" x-model="applicationForm.attendanceType">
+                                            <option value="SICK_LEAVE">病気休暇</option>
+                                            <option value="SPECIAL_LEAVE">産前産後休暇</option>
+                                            <option value="SPECIAL_LEAVE">育児休暇</option>
+                                            <option value="SPECIAL_LEAVE">慶弔休暇</option>
+                                            <option value="UNPAID_LEAVE">その他</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">緊急度</label>
+                                        <select class="form-select" x-model="applicationForm.urgency">
+                                            <option value="normal">通常</option>
+                                            <option value="urgent">急ぎ</option>
+                                            <option value="emergency">緊急</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 日時指定 -->
+                            <div class="form-section">
+                                <div class="section-title">日時指定</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">開始日</label>
+                                        <input type="date" class="form-control" x-model="applicationForm.startDate">
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.type !== 'overtime'">
+                                        <label class="form-label">終了日</label>
+                                        <input type="date" class="form-control" x-model="applicationForm.endDate">
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.type === 'overtime'">
+                                        <label class="form-label">開始時刻</label>
+                                        <input type="time" class="form-control" x-model="applicationForm.startTime">
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.type === 'overtime'">
+                                        <label class="form-label">終了時刻</label>
+                                        <input type="time" class="form-control" x-model="applicationForm.endTime">
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.leaveType === 'half-day'">
+                                        <label class="form-label">取得時間帯</label>
+                                        <select class="form-select" x-model="applicationForm.halfDayPeriod">
+                                            <option value="morning">午前休</option>
+                                            <option value="afternoon">午後休</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6" x-show="applicationForm.leaveType === 'hourly'">
+                                        <label class="form-label">取得時間数</label>
+                                        <select class="form-select" x-model="applicationForm.hours">
+                                            <option value="1">1時間</option>
+                                            <option value="2">2時間</option>
+                                            <option value="3">3時間</option>
+                                            <option value="4">4時間</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <!-- 日数・時間数の表示 -->
+                                <div class="mt-3">
+                                    <div class="remaining-indicator" :class="getRemainingIndicatorClass()">
+                                        <i class="bi bi-info-circle"></i>
+                                        <span x-text="getApplicationSummary()"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 理由・詳細 -->
+                            <div class="form-section">
+                                <div class="section-title">申請理由・詳細</div>
+                                <div class="mb-3">
+                                    <label class="form-label">申請理由</label>
+                                    <textarea class="form-control" rows="3" x-model="applicationForm.reason" 
+                                              placeholder="申請理由を詳しく記入してください"></textarea>
+                                </div>
+                                <div class="mb-3" x-show="applicationForm.type === 'overtime'">
+                                    <label class="form-label">作業内容</label>
+                                    <textarea class="form-control" rows="2" x-model="applicationForm.workContent" 
+                                              placeholder="残業で行う作業内容を記入してください"></textarea>
+                                </div>
+                                <div class="mb-3" x-show="applicationForm.specialType === 'other'">
+                                    <label class="form-label">特別事由詳細</label>
+                                    <textarea class="form-control" rows="2" x-model="applicationForm.specialReason" 
+                                              placeholder="特別事由の詳細を記入してください"></textarea>
+                                </div>
+                            </div>
+                            
+                            <!-- 連絡先・引き継ぎ -->
+                            <div class="form-section" x-show="applicationForm.type !== 'overtime'">
+                                <div class="section-title">連絡先・業務引き継ぎ</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">緊急連絡先</label>
+                                        <input type="tel" class="form-control" x-model="applicationForm.emergencyContact" 
+                                               placeholder="090-xxxx-xxxx">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">代理担当者</label>
+                                        <select class="form-select" x-model="applicationForm.substitute">
+                                            <option value="">選択してください</option>
+                                            <template x-for="member in teamMembers" :key="member.id">
+                                                <option :value="member.id" x-text="member.name"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">引き継ぎ事項</label>
+                                        <textarea class="form-control" rows="3" x-model="applicationForm.handover" 
+                                                  placeholder="業務の引き継ぎ事項があれば記入してください"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 添付ファイル -->
+                            <div class="form-section" x-show="applicationForm.specialType === 'sick' || applicationForm.specialType === 'bereavement'">
+                                <div class="section-title">添付書類</div>
+                                <div class="mb-3">
+                                    <label class="form-label">証明書類</label>
+                                    <input type="file" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png">
+                                    <div class="form-text">
+                                        <span x-show="applicationForm.specialType === 'sick'">診断書などの医療証明書</span>
+                                        <span x-show="applicationForm.specialType === 'bereavement'">会葬礼状などの証明書類</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-outline-secondary" @click="saveDraft()">
+                                    <i class="bi bi-save me-1"></i>下書き保存
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" @click="previewApplication()">
+                                    <i class="bi bi-eye me-1"></i>プレビュー
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-send me-1"></i>申請提出
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- 申請中 -->
+                <div class="tab-pane fade" id="pending-tab" x-show="currentTab === 'pending'">
+                    <template x-for="application in applications.pending" :key="application.id">
+                        <div class="application-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi" :class="getApplicationIcon(application.type)" style="font-size: 1.5rem;" 
+                                           :style="`color: ${getApplicationColor(application.type)}`"></i>
+                                        <div>
+                                            <div class="fw-medium" x-text="getApplicationTitle(application.type)"></div>
+                                            <small class="text-muted" x-text="application.subType"></small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="fw-medium" x-text="formatDateRange(application.startDate, application.endDate)"></div>
+                                    <small class="text-muted" x-text="application.duration"></small>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="small text-muted">申請日</div>
+                                    <div x-text="formatDate(application.appliedAt)"></div>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="status-badge status-pending">承認待ち</span>
+                                    <div class="small text-muted mt-1" x-text="'承認者: ' + application.approver"></div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="small text-muted">理由</div>
+                                    <div class="small" x-text="application.reason.substring(0, 30) + '...'"></div>
+                                </div>
+                                <div class="col-md-1">
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-outline-secondary btn-sm" @click="viewApplication(application.id)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" @click="cancelApplication(application.id)">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <div x-show="applications.pending.length === 0" class="text-center text-muted py-5">
+                        <i class="bi bi-check-circle-fill display-1 mb-3"></i>
+                        <h5>申請中の項目はありません</h5>
+                        <p>新しい申請を作成してください。</p>
+                    </div>
+                </div>
+                
+                <!-- 承認済み -->
+                <div class="tab-pane fade" id="approved-tab" x-show="currentTab === 'approved'">
+                    <div class="application-card">
+                        <div class="application-card-header">
+                            <h5 class="mb-0">承認済み申請履歴</h5>
+                            <div class="d-flex gap-2">
+                                <select class="form-select form-select-sm" x-model="approvedFilters.period">
+                                    <option value="">全期間</option>
+                                    <option value="2025-06">2025年6月</option>
+                                    <option value="2025-05">2025年5月</option>
+                                </select>
+                                <select class="form-select form-select-sm" x-model="approvedFilters.type">
+                                    <option value="">全種別</option>
+                                    <option value="overtime">残業申請</option>
+                                    <option value="leave">有給休暇</option>
+                                    <option value="special">特別休暇</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="application-card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>種別</th>
+                                            <th>期間</th>
+                                            <th>日数・時間</th>
+                                            <th>申請日</th>
+                                            <th>承認日</th>
+                                            <th>承認者</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="application in applications.approved" :key="application.id">
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <i class="bi" :class="getApplicationIcon(application.type)" 
+                                                           :style="`color: ${getApplicationColor(application.type)}`"></i>
+                                                        <div x-text="getApplicationTitle(application.type)"></div>
+                                                    </div>
+                                                </td>
+                                                <td x-text="formatDateRange(application.startDate, application.endDate)"></td>
+                                                <td x-text="application.duration"></td>
+                                                <td x-text="formatDate(application.appliedAt)"></td>
+                                                <td x-text="formatDate(application.approvedAt)"></td>
+                                                <td x-text="application.approver"></td>
+                                                <td>
+                                                    <button class="btn btn-outline-secondary btn-sm" @click="viewApplication(application.id)">
+                                                        <i class="bi bi-eye me-1"></i>詳細
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- カレンダー -->
+                <div class="tab-pane fade" id="calendar-tab" x-show="currentTab === 'calendar'">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="calendar-widget">
+                                <div class="calendar-header">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <button class="btn btn-outline-secondary btn-sm" @click="previousMonth()">
+                                            <i class="bi bi-chevron-left"></i>
+                                        </button>
+                                        <h5 class="mb-0" x-text="formatYearMonth(currentMonth)"></h5>
+                                        <button class="btn btn-outline-secondary btn-sm" @click="nextMonth()">
+                                            <i class="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-primary btn-sm" @click="goToToday()">
+                                            <i class="bi bi-calendar-event me-1"></i>今日
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="calendar-grid">
+                                    <!-- 曜日ヘッダー -->
+                                    <div class="calendar-day-header">日</div>
+                                    <div class="calendar-day-header">月</div>
+                                    <div class="calendar-day-header">火</div>
+                                    <div class="calendar-day-header">水</div>
+                                    <div class="calendar-day-header">木</div>
+                                    <div class="calendar-day-header">金</div>
+                                    <div class="calendar-day-header">土</div>
+                                    
+                                    <!-- カレンダー日付 -->
+                                    <template x-for="day in calendarDays" :key="day.date">
+                                        <div class="calendar-day" 
+                                             :class="{
+                                                 'other-month': !day.isCurrentMonth,
+                                                 'today': day.isToday,
+                                                 'weekend': day.isWeekend,
+                                                 'holiday': day.isHoliday,
+                                                 'applied': day.hasApprovedLeave,
+                                                 'pending': day.hasPendingLeave
+                                             }"
+                                             @click="selectCalendarDay(day)">
+                                            <div x-text="day.dayNumber"></div>
+                                            <div class="day-indicator" x-show="day.hasApprovedLeave" class="indicator-applied"></div>
+                                            <div class="day-indicator" x-show="day.hasPendingLeave" class="indicator-pending"></div>
+                                            <div class="day-indicator" x-show="day.hasOvertime" class="indicator-overtime"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <!-- カレンダー凡例 -->
+                            <div class="application-card">
+                                <div class="application-card-header">
+                                    <h6 class="mb-0">凡例</h6>
+                                </div>
+                                <div class="application-card-body">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="day-indicator indicator-applied"></div>
+                                        <span>承認済み休暇</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="day-indicator indicator-pending"></div>
+                                        <span>申請中休暇</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="day-indicator indicator-overtime"></div>
+                                        <span>残業予定</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 選択日の詳細 -->
+                            <div class="application-card" x-show="selectedCalendarDay">
+                                <div class="application-card-header">
+                                    <h6 class="mb-0" x-text="formatSelectedDate()"></h6>
+                                </div>
+                                <div class="application-card-body">
+                                    <div x-show="selectedDayApplications.length > 0">
+                                        <template x-for="app in selectedDayApplications" :key="app.id">
+                                            <div class="small mb-2">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi" :class="getApplicationIcon(app.type)" 
+                                                       :style="`color: ${getApplicationColor(app.type)}`"></i>
+                                                    <span x-text="getApplicationTitle(app.type)"></span>
+                                                    <span class="status-badge" :class="'status-' + app.status" x-text="app.statusText"></span>
+                                                </div>
+                                                <div class="text-muted mt-1" x-text="app.reason"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <div x-show="selectedDayApplications.length === 0" class="text-muted small">
+                                        この日に申請はありません
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('leaveApplication', () => ({
+                currentTab: 'new',
+                showingApplicationForm: false,
+                currentMonth: new Date(),
+                selectedCalendarDay: null,
+                
+                balances: {
+                    paidLeave: { remaining: 12, used: 8, total: 20 },
+                    compensatory: { remaining: 3, used: 1, total: 4 },
+                    overtime: { thisMonth: 15, limit: 45 },
+                    utilizationRate: 40
+                },
+                
+                applicationForm: {
+                    type: '',
+                    overtimeType: 'pre',
+                    leaveType: 'annual',
+                    specialType: 'sick',
+                    urgency: 'normal',
+                    startDate: '',
+                    endDate: '',
+                    startTime: '',
+                    endTime: '',
+                    halfDayPeriod: 'morning',
+                    hours: '1',
+                    reason: '',
+                    workContent: '',
+                    specialReason: '',
+                    emergencyContact: '',
+                    substitute: '',
+                    handover: ''
+                },
+                
+                approvedFilters: {
+                    period: '',
+                    type: ''
+                },
+                
+                teamMembers: [
+                    { id: '660f9511-f39c-52e5-b827-557766551111', name: '佐藤花子' },
+                    { id: '770a0622-a4ad-63f6-c938-668877662222', name: '田中一郎' },
+                    { id: 'aa0d3955-d7da-96i9-f26b-99bb00995555', name: '鈴木次郎' }
+                ],
+                
+                applications: {
+                    pending: [
+                        {
+                            id: 'cc2f5b77-f0fd-18k1-148d-11dd22117777',
+                            engineerId: '550e8400-e29b-41d4-a716-446655440000',
+                            attendanceType: 'PAID_LEAVE',
+                            specialWorkType: null,
+                            startDate: '2025-06-15',
+                            endDate: '2025-06-16',
+                            isWorkingDay: true,
+                            workLocation: null,
+                            duration: '2日',
+                            appliedAt: '2025-06-01T10:00:00',
+                            approverId: null,
+                            approver: 'PM 田中',
+                            dailyComment: '家族旅行のため',
+                            status: 'PENDING_APPROVAL'
+                        },
+                        {
+                            id: 'dd3a6c88-a1ae-29l2-259e-22ee33228888',
+                            engineerId: '550e8400-e29b-41d4-a716-446655440000',
+                            attendanceType: 'WORK',
+                            specialWorkType: 'OVERTIME',
+                            startDate: '2025-06-05',
+                            endDate: '2025-06-05',
+                            isWorkingDay: true,
+                            workLocation: 'CLIENT_OFFICE',
+                            duration: '3時間',
+                            appliedAt: '2025-06-04T16:00:00',
+                            approverId: null,
+                            approver: 'PM 田中',
+                            dailyComment: 'リリース前の最終調整',
+                            status: 'PENDING_APPROVAL'
+                        }
+                    ],
+                    approved: [
+                        {
+                            id: 'ee4b6b99-b2bc-30m3-360f-33ff44339999',
+                            engineerId: '660f9511-f39c-52e5-b827-557766551111',
+                            attendanceType: 'PAID_LEAVE',
+                            specialWorkType: null,
+                            startDate: '2025-05-20',
+                            endDate: '2025-05-20',
+                            isWorkingDay: false,
+                            workLocation: null,
+                            duration: '1日',
+                            appliedAt: '2025-05-15T09:00:00',
+                            approverId: '770a0622-a4ad-63f6-c938-668877662222',
+                            approver: 'PM 田中',
+                            approvedAt: '2025-05-16T14:30:00',
+                            dailyComment: '家族の用事で有給取得',
+                            status: 'APPROVED'
+                        }
+                    ]
+                },
+                
+                get calendarDays() {
+                    const year = this.currentMonth.getFullYear();
+                    const month = this.currentMonth.getMonth();
+                    const firstDay = new Date(year, month, 1);
+                    const lastDay = new Date(year, month + 1, 0);
+                    const startDate = new Date(firstDay);
+                    startDate.setDate(startDate.getDate() - firstDay.getDay());
+                    
+                    const days = [];
+                    const current = new Date(startDate);
+                    
+                    for (let i = 0; i < 42; i++) {
+                        const isCurrentMonth = current.getMonth() === month;
+                        const isToday = this.isSameDay(current, new Date());
+                        const isWeekend = current.getDay() === 0 || current.getDay() === 6;
+                        const isHoliday = this.isHoliday(current);
+                        
+                        days.push({
+                            date: new Date(current),
+                            dayNumber: current.getDate(),
+                            isCurrentMonth,
+                            isToday,
+                            isWeekend,
+                            isHoliday,
+                            hasApprovedLeave: this.hasApprovedLeave(current),
+                            hasPendingLeave: this.hasPendingLeave(current),
+                            hasOvertime: this.hasOvertime(current)
+                        });
+                        
+                        current.setDate(current.getDate() + 1);
+                    }
+                    
+                    return days;
+                },
+                
+                get selectedDayApplications() {
+                    if (!this.selectedCalendarDay) return [];
+                    
+                    const date = this.selectedCalendarDay.date.toISOString().split('T')[0];
+                    const allApps = [...this.applications.pending, ...this.applications.approved];
+                    
+                    return allApps.filter(app => {
+                        return app.startDate <= date && app.endDate >= date;
+                    }).map(app => ({
+                        ...app,
+                        status: this.applications.pending.includes(app) ? 'pending' : 'approved',
+                        statusText: this.applications.pending.includes(app) ? '申請中' : '承認済み'
+                    }));
+                },
+                
+                isSameDay(date1, date2) {
+                    return date1.toDateString() === date2.toDateString();
+                },
+                
+                isHoliday(date) {
+                    // 簡単な祝日判定
+                    const holidays = ['2025-01-01', '2025-01-13', '2025-02-11'];
+                    return holidays.includes(date.toISOString().split('T')[0]);
+                },
+                
+                hasApprovedLeave(date) {
+                    const dateStr = date.toISOString().split('T')[0];
+                    return this.applications.approved.some(app => 
+                        app.startDate <= dateStr && app.endDate >= dateStr && app.type === 'leave'
+                    );
+                },
+                
+                hasPendingLeave(date) {
+                    const dateStr = date.toISOString().split('T')[0];
+                    return this.applications.pending.some(app => 
+                        app.startDate <= dateStr && app.endDate >= dateStr && app.type === 'leave'
+                    );
+                },
+                
+                hasOvertime(date) {
+                    const dateStr = date.toISOString().split('T')[0];
+                    return this.applications.pending.some(app => 
+                        app.startDate <= dateStr && app.endDate >= dateStr && app.type === 'overtime'
+                    );
+                },
+                
+                selectApplicationType(type) {
+                    this.applicationForm.type = type;
+                    this.showingApplicationForm = true;
+                },
+                
+                resetApplicationForm() {
+                    this.applicationForm = {
+                        type: '',
+                        overtimeType: 'pre',
+                        leaveType: 'annual',
+                        specialType: 'sick',
+                        urgency: 'normal',
+                        startDate: '',
+                        endDate: '',
+                        startTime: '',
+                        endTime: '',
+                        halfDayPeriod: 'morning',
+                        hours: '1',
+                        reason: '',
+                        workContent: '',
+                        specialReason: '',
+                        emergencyContact: '',
+                        substitute: '',
+                        handover: ''
+                    };
+                    this.showingApplicationForm = false;
+                },
+                
+                getApplicationIcon(type) {
+                    const icons = {
+                        'overtime': 'bi-clock-history',
+                        'leave': 'bi-calendar-check',
+                        'special': 'bi-heart-pulse'
+                    };
+                    return icons[type] || 'bi-file-text';
+                },
+                
+                getApplicationTitle(type) {
+                    const titles = {
+                        'overtime': '残業申請',
+                        'leave': '有給休暇申請',
+                        'special': '特別休暇申請'
+                    };
+                    return titles[type] || '申請';
+                },
+                
+                getApplicationColor(type) {
+                    const colors = {
+                        'overtime': '#ff6b6b',
+                        'leave': '#4ecdc4',
+                        'special': '#ffe66d'
+                    };
+                    return colors[type] || '#6c757d';
+                },
+                
+                formatDate(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                },
+                
+                formatDateRange(startDate, endDate) {
+                    if (startDate === endDate) {
+                        return this.formatDate(startDate);
+                    }
+                    return this.formatDate(startDate) + ' 〜 ' + this.formatDate(endDate);
+                },
+                
+                formatYearMonth(date) {
+                    return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' });
+                },
+                
+                formatSelectedDate() {
+                    if (!this.selectedCalendarDay) return '';
+                    return this.selectedCalendarDay.date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        weekday: 'short'
+                    });
+                },
+                
+                getApplicationSummary() {
+                    if (this.applicationForm.type === 'overtime') {
+                        return `残業申請 - 残り上限: ${this.balances.overtime.limit - this.balances.overtime.thisMonth}時間`;
+                    } else if (this.applicationForm.type === 'leave') {
+                        return `有給申請 - 残日数: ${this.balances.paidLeave.remaining}日`;
+                    } else {
+                        return '特別休暇申請';
+                    }
+                },
+                
+                getRemainingIndicatorClass() {
+                    if (this.applicationForm.type === 'overtime') {
+                        const remaining = this.balances.overtime.limit - this.balances.overtime.thisMonth;
+                        if (remaining < 10) return 'danger-indicator';
+                        if (remaining < 20) return 'warning-indicator';
+                        return 'remaining-indicator';
+                    } else if (this.applicationForm.type === 'leave') {
+                        if (this.balances.paidLeave.remaining < 5) return 'warning-indicator';
+                        return 'remaining-indicator';
+                    }
+                    return 'remaining-indicator';
+                },
+                
+                quickApply(type) {
+                    console.log('クイック申請:', type);
+                    // 申請タイプに応じた処理
+                },
+                
+                submitApplication() {
+                    console.log('申請提出:', this.applicationForm);
+                    alert('申請を提出しました');
+                    this.resetApplicationForm();
+                },
+                
+                saveDraft() {
+                    console.log('下書き保存:', this.applicationForm);
+                    alert('下書きを保存しました');
+                },
+                
+                previewApplication() {
+                    console.log('プレビュー表示:', this.applicationForm);
+                },
+                
+                viewApplication(id) {
+                    console.log('申請詳細表示:', id);
+                },
+                
+                cancelApplication(id) {
+                    if (confirm('この申請を取り消しますか？')) {
+                        console.log('申請取り消し:', id);
+                        alert('申請を取り消しました');
+                    }
+                },
+                
+                selectCalendarDay(day) {
+                    this.selectedCalendarDay = day;
+                },
+                
+                previousMonth() {
+                    this.currentMonth = new Date(this.currentMonth.getFullYear(), this.currentMonth.getMonth() - 1, 1);
+                },
+                
+                nextMonth() {
+                    this.currentMonth = new Date(this.currentMonth.getFullYear(), this.currentMonth.getMonth() + 1, 1);
+                },
+                
+                goToToday() {
+                    this.currentMonth = new Date();
+                },
+                
+                refreshData() {
+                    console.log('データ更新中...');
+                },
+                
+                exportApplicationData() {
+                    console.log('申請履歴エクスポート');
+                },
+                
+                showQuickApplication() {
+                    this.currentTab = 'new';
+                    this.showingApplicationForm = false;
+                },
+                
+                viewYearlyBalance() {
+                    console.log('年間詳細表示');
+                },
+                
+                openBalanceSettings() {
+                    console.log('設定表示');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

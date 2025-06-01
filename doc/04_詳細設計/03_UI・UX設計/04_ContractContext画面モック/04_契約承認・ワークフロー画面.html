@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>契約承認・ワークフロー - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .workflow-canvas {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            min-height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .workflow-node {
+            position: absolute;
+            width: 120px;
+            height: 80px;
+            border-radius: 0.375rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            text-align: center;
+            padding: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .workflow-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .node-start {
+            background: #e3f2fd;
+            border: 2px solid var(--ses-primary);
+            color: var(--ses-primary);
+        }
+        
+        .node-pending {
+            background: #fff3e0;
+            border: 2px solid var(--ses-warning);
+            color: var(--ses-warning);
+        }
+        
+        .node-approved {
+            background: #e8f5e8;
+            border: 2px solid var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .node-rejected {
+            background: #ffebee;
+            border: 2px solid var(--ses-danger);
+            color: var(--ses-danger);
+        }
+        
+        .node-active {
+            animation: pulse 2s infinite;
+            border-width: 3px;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 110, 253, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+        }
+        
+        .workflow-arrow {
+            position: absolute;
+            height: 2px;
+            background: #6c757d;
+            z-index: 1;
+        }
+        
+        .workflow-arrow::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: -3px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid #6c757d;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+        }
+        
+        .workflow-arrow.active {
+            background: var(--ses-primary);
+        }
+        
+        .workflow-arrow.active::after {
+            border-left-color: var(--ses-primary);
+        }
+        
+        .approval-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .approval-card:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .approval-card.urgent {
+            border-left: 4px solid var(--ses-danger);
+        }
+        
+        .approval-card.important {
+            border-left: 4px solid var(--ses-warning);
+        }
+        
+        .approval-card.completed {
+            background: #f8f9fa;
+            border-left: 4px solid var(--ses-success);
+        }
+        
+        .approval-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .timeline-container {
+            position: relative;
+            padding-left: 2rem;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-bottom: 2rem;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -2rem;
+            top: 0.5rem;
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            border: 2px solid var(--ses-primary);
+            background: white;
+        }
+        
+        .timeline-item.completed::before {
+            background: var(--ses-success);
+            border-color: var(--ses-success);
+        }
+        
+        .timeline-item.active::before {
+            background: var(--ses-primary);
+            border-color: var(--ses-primary);
+            animation: pulse 2s infinite;
+        }
+        
+        .timeline-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: -1.5rem;
+            top: 1.5rem;
+            width: 2px;
+            height: calc(100% - 1rem);
+            background: #dee2e6;
+        }
+        
+        .timeline-item.completed:not(:last-child)::after {
+            background: var(--ses-success);
+        }
+        
+        .comment-box {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+        }
+        
+        .priority-high {
+            color: var(--ses-danger);
+            font-weight: bold;
+        }
+        
+        .priority-medium {
+            color: var(--ses-warning);
+            font-weight: medium;
+        }
+        
+        .priority-low {
+            color: var(--ses-secondary);
+        }
+        
+        .approval-summary {
+            background: linear-gradient(135deg, var(--ses-primary), #0056b3);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.375rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            background: white;
+            transition: all 0.2s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--ses-primary);
+        }
+        
+        .workflow-template {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .workflow-template:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .workflow-template.selected {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .escalation-alert {
+            background: #fff3e0;
+            border: 1px solid var(--ses-warning);
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .delegation-panel {
+            background: #e3f2fd;
+            border: 1px solid var(--ses-primary);
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .approval-history {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .chart-container {
+            height: 250px;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body x-data="approvalWorkflow" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">契約管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">承認・ワークフロー</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">契約承認・ワークフロー管理</h1>
+                    <p class="text-muted mb-0">契約承認プロセスの管理・監視・最適化</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportWorkflowReport()">
+                        <i class="bi bi-download me-1"></i>レポート出力
+                    </button>
+                    <button class="btn btn-outline-primary" @click="showWorkflowSettings()">
+                        <i class="bi bi-gear me-1"></i>ワークフロー設定
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-plus me-1"></i>新規作成
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" @click="createApprovalRequest()">
+                                <i class="bi bi-file-earmark-check me-2"></i>承認依頼
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="createWorkflowTemplate()">
+                                <i class="bi bi-diagram-3 me-2"></i>ワークフローテンプレート
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="createEscalationRule()">
+                                <i class="bi bi-arrow-up-circle me-2"></i>エスカレーションルール
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 承認統計サマリー -->
+            <div class="approval-summary">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <h4 class="mb-3">承認状況サマリー</h4>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number" x-text="stats.pending">5</div>
+                                    <div class="small">承認待ち</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-warning" x-text="stats.urgent">2</div>
+                                    <div class="small">緊急対応</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-success" x-text="stats.completed">18</div>
+                                    <div class="small">今月完了</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-info" x-text="stats.avgDays">2.3</div>
+                                    <div class="small">平均処理日数</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 text-end">
+                        <div class="chart-container">
+                            <canvas id="approvalTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-4" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pending-approvals" role="tab">
+                        <i class="bi bi-clock me-1"></i>承認待ち <span class="badge bg-warning ms-1" x-text="pendingApprovals.length">5</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#workflow-designer" role="tab">
+                        <i class="bi bi-diagram-3 me-1"></i>ワークフロー設計
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#approval-history" role="tab">
+                        <i class="bi bi-clock-history me-1"></i>承認履歴
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#analytics" role="tab">
+                        <i class="bi bi-graph-up me-1"></i>分析・レポート
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content">
+                <!-- 承認待ちタブ -->
+                <div class="tab-pane fade show active" id="pending-approvals" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- 承認待ち一覧 -->
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-list-check me-2"></i>承認待ち一覧
+                                    </h5>
+                                    <div class="d-flex gap-2">
+                                        <select class="form-select form-select-sm" x-model="approvalFilter">
+                                            <option value="all">すべて</option>
+                                            <option value="urgent">緊急</option>
+                                            <option value="mine">自分の担当</option>
+                                            <option value="delegated">代理承認</option>
+                                        </select>
+                                        <button class="btn btn-outline-primary btn-sm" @click="refreshApprovals()">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="approval in filteredPendingApprovals" :key="approval.id">
+                                        <div class="approval-card" 
+                                             :class="{ 
+                                                 'urgent': approval.priority === 'HIGH', 
+                                                 'important': approval.priority === 'MEDIUM',
+                                                 'completed': approval.status === 'ACTIVE'
+                                             }">
+                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                <div>
+                                                    <h6 class="mb-1">
+                                                        <a href="#" @click="viewContract(approval.contractId)" class="text-decoration-none" x-text="approval.contractName"></a>
+                                                    </h6>
+                                                    <div class="small text-muted mb-2">
+                                                        <span x-text="approval.requestor"></span> • 
+                                                        <span x-text="formatDateTime(approval.requestedAt)"></span>
+                                                    </div>
+                                                    <p class="mb-2" x-text="approval.description"></p>
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <span class="badge" :class="getPriorityClass(approval.priority)" x-text="getPriorityText(approval.priority)"></span>
+                                                        <span class="small text-muted">
+                                                            <i class="bi bi-clock me-1"></i>
+                                                            期限: <span x-text="formatDate(approval.deadline)"></span>
+                                                        </span>
+                                                        <span class="small text-muted" x-show="approval.delegatedFrom">
+                                                            <i class="bi bi-arrow-right me-1"></i>
+                                                            <span x-text="approval.delegatedFrom"></span>から代理
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div class="text-end">
+                                                    <div class="small text-muted mb-2">承認者</div>
+                                                    <div class="d-flex align-items-center">
+                                                        <img :src="approval.approver.avatar" class="rounded-circle me-2" width="32" height="32">
+                                                        <span class="small" x-text="approval.approver.name"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- 承認アクション -->
+                                            <div class="approval-actions" x-show="approval.canApprove">
+                                                <button class="btn btn-success btn-sm" @click="approveContract(approval.id)">
+                                                    <i class="bi bi-check-circle me-1"></i>承認
+                                                </button>
+                                                <button class="btn btn-danger btn-sm" @click="rejectContract(approval.id)">
+                                                    <i class="bi bi-x-circle me-1"></i>却下
+                                                </button>
+                                                <button class="btn btn-outline-secondary btn-sm" @click="requestRevision(approval.id)">
+                                                    <i class="bi bi-arrow-left-circle me-1"></i>差戻し
+                                                </button>
+                                                <button class="btn btn-outline-info btn-sm" @click="delegateApproval(approval.id)">
+                                                    <i class="bi bi-person-plus me-1"></i>代理承認
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- コメント欄 -->
+                                            <div class="mt-3" x-show="approval.showCommentBox">
+                                                <textarea class="form-control mb-2" x-model="approval.comment" 
+                                                          placeholder="承認・却下の理由やコメントを入力してください..." rows="3"></textarea>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-primary btn-sm" @click="submitApprovalWithComment(approval.id)">
+                                                        <i class="bi bi-send me-1"></i>送信
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary btn-sm" @click="approval.showCommentBox = false">
+                                                        キャンセル
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- エスカレーション通知 -->
+                            <div class="card mb-4" x-show="escalations.length > 0">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>エスカレーション通知
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="escalation in escalations" :key="escalation.id">
+                                        <div class="escalation-alert">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
+                                                <div class="flex-grow-1">
+                                                    <div class="fw-medium" x-text="escalation.title"></div>
+                                                    <div class="small text-muted" x-text="escalation.message"></div>
+                                                    <div class="mt-2">
+                                                        <button class="btn btn-warning btn-sm" @click="handleEscalation(escalation.id)">
+                                                            対応する
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            
+                            <!-- クイック統計 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-speedometer2 me-2"></i>承認統計
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="approvalStatusChart"></canvas>
+                                    </div>
+                                    <div class="mt-3">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="small">今日の処理件数</span>
+                                            <span class="fw-medium" x-text="todayStats.processed">3件</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="small">平均処理時間</span>
+                                            <span class="fw-medium" x-text="todayStats.avgTime">1.5時間</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span class="small">承認率</span>
+                                            <span class="fw-medium text-success" x-text="todayStats.approvalRate">94%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ワークフロー設計タブ -->
+                <div class="tab-pane fade" id="workflow-designer" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-diagram-3 me-2"></i>ワークフロー設計
+                                    </h5>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-secondary btn-sm" @click="resetWorkflow()">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>リセット
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" @click="saveWorkflow()">
+                                            <i class="bi bi-save me-1"></i>保存
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" @click="testWorkflow()">
+                                            <i class="bi bi-play me-1"></i>テスト実行
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="workflow-canvas" @click="addWorkflowNode($event)">
+                                        <!-- ワークフローノード -->
+                                        <template x-for="(node, index) in workflowNodes" :key="node.id">
+                                            <div class="workflow-node" 
+                                                 :class="[`node-${node.type}`, { 'node-active': node.active }]"
+                                                 :style="`left: ${node.x}px; top: ${node.y}px`"
+                                                 @click.stop="selectNode(node.id)"
+                                                 @dblclick="editNode(node.id)">
+                                                <i class="bi" :class="node.icon"></i>
+                                                <div class="small mt-1" x-text="node.name"></div>
+                                            </div>
+                                        </template>
+                                        
+                                        <!-- 接続線 -->
+                                        <template x-for="connection in workflowConnections" :key="connection.id">
+                                            <div class="workflow-arrow" 
+                                                 :class="{ active: connection.active }"
+                                                 :style="getConnectionStyle(connection)"></div>
+                                        </template>
+                                    </div>
+                                    
+                                    <!-- ノード編集パネル -->
+                                    <div class="mt-3" x-show="selectedNode">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="card-title mb-0">ノード設定</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row g-3">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">ノード名</label>
+                                                        <input type="text" class="form-control" x-model="selectedNode?.name">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">承認者</label>
+                                                        <select class="form-select" x-model="selectedNode?.approver">
+                                                            <option value="">選択してください</option>
+                                                            <template x-for="user in approvers" :key="user.id">
+                                                                <option :value="user.id" x-text="user.name"></option>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">制限時間（時間）</label>
+                                                        <input type="number" class="form-control" x-model="selectedNode?.timeLimit" min="1">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">エスカレーション先</label>
+                                                        <select class="form-select" x-model="selectedNode?.escalationTo">
+                                                            <option value="">なし</option>
+                                                            <template x-for="user in approvers" :key="user.id">
+                                                                <option :value="user.id" x-text="user.name"></option>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label class="form-label">承認条件</label>
+                                                        <textarea class="form-control" x-model="selectedNode?.conditions" rows="2" 
+                                                                  placeholder="承認条件やルールを入力してください"></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- ワークフローテンプレート -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-files me-2"></i>テンプレート
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="template in workflowTemplates" :key="template.id">
+                                        <div class="workflow-template" 
+                                             :class="{ selected: selectedTemplate?.id === template.id }"
+                                             @click="loadTemplate(template)">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi" :class="template.icon" style="font-size: 1.5rem; margin-right: 1rem; color: var(--ses-primary);"></i>
+                                                <div>
+                                                    <h6 class="mb-1" x-text="template.name"></h6>
+                                                    <p class="small text-muted mb-1" x-text="template.description"></p>
+                                                    <div class="small">
+                                                        <span class="badge bg-light text-dark" x-text="`${template.steps}ステップ`"></span>
+                                                        <span class="text-muted ms-2" x-text="`平均${template.avgDays}日`"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            
+                            <!-- ノードパレット -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-puzzle me-2"></i>ノードパレット
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-2">
+                                        <template x-for="nodeType in nodeTypes" :key="nodeType.type">
+                                            <div class="col-6">
+                                                <div class="workflow-node small" 
+                                                     :class="`node-${nodeType.type}`"
+                                                     style="position: relative; width: 100%; height: 60px; cursor: grab;"
+                                                     @click="addNodeToCanvas(nodeType)">
+                                                    <i class="bi" :class="nodeType.icon"></i>
+                                                    <div x-text="nodeType.name"></div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 承認履歴タブ -->
+                <div class="tab-pane fade" id="approval-history" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history me-2"></i>承認履歴
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="approval-history">
+                                <div class="timeline-container">
+                                    <template x-for="history in approvalHistory" :key="history.id">
+                                        <div class="timeline-item" :class="{ completed: history.completed, active: history.active }">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <h6 class="mb-1" x-text="history.title"></h6>
+                                                    <p class="text-muted mb-2" x-text="history.description"></p>
+                                                    <div class="d-flex align-items-center gap-3 mb-2">
+                                                        <span class="small">
+                                                            <i class="bi bi-person me-1"></i>
+                                                            <span x-text="history.user"></span>
+                                                        </span>
+                                                        <span class="small text-muted">
+                                                            <i class="bi bi-clock me-1"></i>
+                                                            <span x-text="formatDateTime(history.timestamp)"></span>
+                                                        </span>
+                                                        <span class="badge" :class="getStatusClass(history.action)" x-text="history.action"></span>
+                                                    </div>
+                                                    <div class="comment-box" x-show="history.comment">
+                                                        <div class="small text-muted mb-1">コメント:</div>
+                                                        <div x-text="history.comment"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="text-end">
+                                                    <button class="btn btn-outline-secondary btn-sm" @click="viewHistoryDetail(history.id)">
+                                                        詳細
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 分析・レポートタブ -->
+                <div class="tab-pane fade" id="analytics" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-graph-up me-2"></i>承認パフォーマンス分析
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="performanceChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-people me-2"></i>承認者別統計
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>承認者</th>
+                                                    <th>処理件数</th>
+                                                    <th>平均時間</th>
+                                                    <th>承認率</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="stat in approverStats" :key="stat.id">
+                                                    <tr>
+                                                        <td x-text="stat.name"></td>
+                                                        <td x-text="stat.processed"></td>
+                                                        <td x-text="stat.avgTime"></td>
+                                                        <td>
+                                                            <span class="badge bg-success" x-text="`${stat.approvalRate}%`"></span>
+                                                        </td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-hourglass me-2"></i>処理時間分析
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="timeAnalysisChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>ボトルネック分析
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="bottleneck in bottlenecks" :key="bottleneck.id">
+                                        <div class="d-flex align-items-center justify-content-between mb-3 p-2 border rounded">
+                                            <div>
+                                                <div class="fw-medium" x-text="bottleneck.process"></div>
+                                                <div class="small text-muted" x-text="bottleneck.description"></div>
+                                            </div>
+                                            <div class="text-end">
+                                                <div class="fw-medium text-warning" x-text="bottleneck.impact"></div>
+                                                <div class="small text-muted">影響度</div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('approvalWorkflow', () => ({
+                approvalFilter: 'all',
+                selectedNode: null,
+                selectedTemplate: null,
+                
+                stats: {
+                    pending: 5,
+                    urgent: 2,
+                    completed: 18,
+                    avgDays: 2.3
+                },
+                
+                todayStats: {
+                    processed: 3,
+                    avgTime: '1.5時間',
+                    approvalRate: '94%'
+                },
+                
+                pendingApprovals: [
+                    {
+                        id: 'ap-001',
+                        contractId: 'con-001',
+                        contractName: '田中太郎 業務委託契約',
+                        description: '新規業務委託契約の承認をお願いいたします',
+                        priority: 'HIGH',
+                        requestor: '山田PM',
+                        requestedAt: '2025-06-01T09:00:00',
+                        deadline: '2025-06-03',
+                        approver: { name: '佐藤部長', avatar: 'https://via.placeholder.com/32' },
+                        canApprove: true,
+                        delegatedFrom: null,
+                        showCommentBox: false,
+                        comment: ''
+                    },
+                    {
+                        id: 'ap-002',
+                        contractId: 'con-002',
+                        contractName: 'XYZ製造 秘密保持契約',
+                        description: '機密情報保護のための秘密保持契約承認',
+                        priority: 'MEDIUM',
+                        requestor: '鈴木営業',
+                        requestedAt: '2025-05-31T14:30:00',
+                        deadline: '2025-06-05',
+                        approver: { name: '田中法務', avatar: 'https://via.placeholder.com/32' },
+                        canApprove: false,
+                        delegatedFrom: '佐藤部長',
+                        showCommentBox: false,
+                        comment: ''
+                    }
+                ],
+                
+                escalations: [
+                    {
+                        id: 'esc-001',
+                        title: '承認期限超過',
+                        message: '田中太郎契約の承認期限が2日超過しています'
+                    }
+                ],
+                
+                workflowNodes: [
+                    { id: 'node-1', name: '申請', type: 'start', icon: 'bi-play-circle', x: 50, y: 50, active: false },
+                    { id: 'node-2', name: '法務確認', type: 'pending', icon: 'bi-shield-check', x: 200, y: 50, active: true },
+                    { id: 'node-3', name: '部長承認', type: 'pending', icon: 'bi-person-check', x: 350, y: 50, active: false },
+                    { id: 'node-4', name: '完了', type: 'approved', icon: 'bi-check-circle', x: 500, y: 50, active: false }
+                ],
+                
+                workflowConnections: [
+                    { id: 'conn-1', from: 'node-1', to: 'node-2', active: true },
+                    { id: 'conn-2', from: 'node-2', to: 'node-3', active: false },
+                    { id: 'conn-3', from: 'node-3', to: 'node-4', active: false }
+                ],
+                
+                workflowTemplates: [
+                    {
+                        id: 'template-1',
+                        name: '標準承認フロー',
+                        description: '一般的な契約承認プロセス',
+                        icon: 'bi-diagram-2',
+                        steps: 3,
+                        avgDays: 2
+                    },
+                    {
+                        id: 'template-2',
+                        name: '緊急承認フロー',
+                        description: '緊急時の簡略化されたプロセス',
+                        icon: 'bi-lightning',
+                        steps: 2,
+                        avgDays: 1
+                    },
+                    {
+                        id: 'template-3',
+                        name: '高額契約フロー',
+                        description: '高額契約向けの多段階承認',
+                        icon: 'bi-currency-yen',
+                        steps: 5,
+                        avgDays: 5
+                    }
+                ],
+                
+                nodeTypes: [
+                    { type: 'start', name: '開始', icon: 'bi-play-circle' },
+                    { type: 'pending', name: '承認', icon: 'bi-person-check' },
+                    { type: 'approved', name: '完了', icon: 'bi-check-circle' },
+                    { type: 'rejected', name: '却下', icon: 'bi-x-circle' }
+                ],
+                
+                approvers: [
+                    { id: 'user-1', name: '佐藤部長' },
+                    { id: 'user-2', name: '田中法務' },
+                    { id: 'user-3', name: '山田PM' }
+                ],
+                
+                approvalHistory: [
+                    {
+                        id: 'hist-1',
+                        title: '業務委託契約承認',
+                        description: '田中太郎の業務委託契約が承認されました',
+                        user: '佐藤部長',
+                        timestamp: '2025-06-01T15:30:00',
+                        action: '承認',
+                        completed: true,
+                        active: false,
+                        comment: '条件を確認し、問題ないため承認いたします。'
+                    },
+                    {
+                        id: 'hist-2',
+                        title: '秘密保持契約レビュー',
+                        description: 'XYZ製造との秘密保持契約を法務確認中',
+                        user: '田中法務',
+                        timestamp: '2025-06-01T10:00:00',
+                        action: '確認中',
+                        completed: false,
+                        active: true,
+                        comment: null
+                    }
+                ],
+                
+                approverStats: [
+                    { id: 1, name: '佐藤部長', processed: 15, avgTime: '2.1時間', approvalRate: 96 },
+                    { id: 2, name: '田中法務', processed: 12, avgTime: '3.5時間', approvalRate: 92 },
+                    { id: 3, name: '山田PM', processed: 8, avgTime: '1.8時間', approvalRate: 98 }
+                ],
+                
+                bottlenecks: [
+                    {
+                        id: 1,
+                        process: '法務確認プロセス',
+                        description: '複雑な契約の法務確認に時間がかかっています',
+                        impact: 'HIGH'
+                    },
+                    {
+                        id: 2,
+                        process: '部長承認待ち',
+                        description: '出張中の部長承認が遅延しています',
+                        impact: 'MEDIUM'
+                    }
+                ],
+                
+                get filteredPendingApprovals() {
+                    return this.pendingApprovals.filter(approval => {
+                        if (this.approvalFilter === 'urgent') {
+                            return approval.priority === 'HIGH';
+                        } else if (this.approvalFilter === 'mine') {
+                            return approval.canApprove;
+                        } else if (this.approvalFilter === 'delegated') {
+                            return approval.delegatedFrom;
+                        }
+                        return true;
+                    });
+                },
+                
+                init() {
+                    this.initCharts();
+                },
+                
+                initCharts() {
+                    // 承認トレンドチャート
+                    const trendCtx = document.getElementById('approvalTrendChart').getContext('2d');
+                    new Chart(trendCtx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1週', '2週', '3週', '4週'],
+                            datasets: [{
+                                label: '承認件数',
+                                data: [5, 8, 6, 12],
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { ticks: { color: 'white' } },
+                                y: { ticks: { color: 'white' } }
+                            }
+                        }
+                    });
+                    
+                    // 承認ステータスチャート
+                    const statusCtx = document.getElementById('approvalStatusChart').getContext('2d');
+                    new Chart(statusCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['承認済み', '承認待ち', '却下'],
+                            datasets: [{
+                                data: [18, 5, 2],
+                                backgroundColor: ['#198754', '#ffc107', '#dc3545']
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                },
+                
+                approveContract(id) {
+                    const approval = this.pendingApprovals.find(a => a.id === id);
+                    if (approval) {
+                        approval.showCommentBox = true;
+                    }
+                },
+                
+                rejectContract(id) {
+                    const approval = this.pendingApprovals.find(a => a.id === id);
+                    if (approval) {
+                        approval.showCommentBox = true;
+                    }
+                },
+                
+                submitApprovalWithComment(id) {
+                    console.log('承認処理:', id);
+                    alert('承認処理を実行しました。');
+                },
+                
+                selectNode(nodeId) {
+                    this.selectedNode = this.workflowNodes.find(n => n.id === nodeId);
+                },
+                
+                addNodeToCanvas(nodeType) {
+                    const newNode = {
+                        id: `node-${Date.now()}`,
+                        name: nodeType.name,
+                        type: nodeType.type,
+                        icon: nodeType.icon,
+                        x: 100,
+                        y: 100,
+                        active: false
+                    };
+                    this.workflowNodes.push(newNode);
+                },
+                
+                getConnectionStyle(connection) {
+                    const fromNode = this.workflowNodes.find(n => n.id === connection.from);
+                    const toNode = this.workflowNodes.find(n => n.id === connection.to);
+                    
+                    if (!fromNode || !toNode) return '';
+                    
+                    const fromX = fromNode.x + 120;
+                    const fromY = fromNode.y + 40;
+                    const toX = toNode.x;
+                    const toY = toNode.y + 40;
+                    
+                    const width = toX - fromX;
+                    
+                    return `left: ${fromX}px; top: ${fromY}px; width: ${width}px;`;
+                },
+                
+                loadTemplate(template) {
+                    this.selectedTemplate = template;
+                    console.log('テンプレート読み込み:', template.name);
+                },
+                
+                getPriorityClass(priority) {
+                    const classes = {
+                        'HIGH': 'bg-danger',
+                        'MEDIUM': 'bg-warning',
+                        'LOW': 'bg-secondary'
+                    };
+                    return classes[priority] || 'bg-secondary';
+                },
+                
+                getPriorityText(priority) {
+                    const texts = {
+                        'HIGH': '緊急',
+                        'MEDIUM': '重要',
+                        'LOW': '通常'
+                    };
+                    return texts[priority] || priority;
+                },
+                
+                getStatusClass(status) {
+                    const classes = {
+                        'ACTIVE': 'bg-success',
+                        'CANCELLED': 'bg-danger',
+                        'PENDING_SIGNATURE': 'bg-warning',
+                        'DRAFT': 'bg-secondary',
+                        'TERMINATED': 'bg-dark'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                },
+                
+                formatDateTime(dateStr) {
+                    return new Date(dateStr).toLocaleString('ja-JP');
+                },
+                
+                refreshApprovals() {
+                    console.log('承認待ち一覧更新');
+                },
+                
+                viewContract(contractId) {
+                    console.log('契約詳細表示:', contractId);
+                },
+                
+                requestRevision(id) {
+                    console.log('差戻し:', id);
+                },
+                
+                delegateApproval(id) {
+                    console.log('代理承認:', id);
+                },
+                
+                handleEscalation(id) {
+                    console.log('エスカレーション対応:', id);
+                },
+                
+                exportWorkflowReport() {
+                    console.log('ワークフローレポート出力');
+                },
+                
+                showWorkflowSettings() {
+                    console.log('ワークフロー設定');
+                },
+                
+                createApprovalRequest() {
+                    console.log('承認依頼作成');
+                },
+                
+                createWorkflowTemplate() {
+                    console.log('ワークフローテンプレート作成');
+                },
+                
+                createEscalationRule() {
+                    console.log('エスカレーションルール作成');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

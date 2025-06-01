@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技術者一覧 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .skill-tag {
+            display: inline-block;
+            background: #e9ecef;
+            color: #495057;
+            padding: 0.125rem 0.375rem;
+            margin: 0.125rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            text-decoration: none;
+        }
+        
+        .skill-tag:hover {
+            background: #dee2e6;
+            color: #495057;
+        }
+        
+        .engineer-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .engineer-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .status-available { background-color: var(--ses-success); }
+        .status-assigned { background-color: var(--ses-primary); }
+        .status-busy { background-color: var(--ses-warning); }
+        .status-unavailable { background-color: var(--ses-danger); }
+        
+        .experience-bar {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .experience-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--ses-primary), var(--ses-success));
+            transition: width 0.3s ease;
+        }
+        
+        .rating-stars {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body x-data="engineerList" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h1 class="h3 mb-2">技術者一覧</h1>
+                    <p class="text-muted mb-0">技術者の管理・検索・スキル評価・稼働状況管理</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportEngineers()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-primary" @click="importEngineers()">
+                        <i class="bi bi-upload me-1"></i>インポート
+                    </button>
+                    <button class="btn btn-primary" @click="createEngineer()">
+                        <i class="bi bi-person-plus me-1"></i>技術者登録
+                    </button>
+                </div>
+            </div>
+            
+            <!-- フィルター・検索エリア -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">氏名・メールアドレス</label>
+                            <input type="text" class="form-control" placeholder="検索キーワード" x-model="filters.keyword">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">稼働状況</label>
+                            <select class="form-select" x-model="filters.status">
+                                <option value="">すべて</option>
+                                <option value="AVAILABLE">稼働可能</option>
+                                <option value="ASSIGNED">アサイン済</option>
+                                <option value="BUSY">稼働中</option>
+                                <option value="UNAVAILABLE">稼働不可</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">経験年数</label>
+                            <select class="form-select" x-model="filters.experience">
+                                <option value="">指定なし</option>
+                                <option value="0-1">0-1年</option>
+                                <option value="2-3">2-3年</option>
+                                <option value="4-7">4-7年</option>
+                                <option value="8-10">8-10年</option>
+                                <option value="11+">11年以上</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">スキル</label>
+                            <input type="text" class="form-control" placeholder="Java, Python, React..." x-model="filters.skills">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">評価</label>
+                            <select class="form-select" x-model="filters.rating">
+                                <option value="">指定なし</option>
+                                <option value="5">★★★★★</option>
+                                <option value="4">★★★★☆以上</option>
+                                <option value="3">★★★☆☆以上</option>
+                                <option value="2">★★☆☆☆以上</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary" @click="searchEngineers()">
+                                    <i class="bi bi-search me-1"></i>検索
+                                </button>
+                                <button class="btn btn-outline-secondary" @click="resetFilters()">
+                                    <i class="bi bi-x-circle me-1"></i>リセット
+                                </button>
+                                <button class="btn btn-outline-info" @click="saveFilter()">
+                                    <i class="bi bi-bookmark me-1"></i>フィルタ保存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 操作エリア -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted" x-text="`全${totalCount}人中 ${startIndex}-${endIndex}人を表示`"></span>
+                    <div class="form-check" x-show="selectedEngineers.length > 0">
+                        <input class="form-check-input" type="checkbox" x-model="selectAll" @change="toggleSelectAll()">
+                        <label class="form-check-label">
+                            全選択 (<span x-text="selectedEngineers.length"></span>人選択中)
+                        </label>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" :disabled="selectedEngineers.length === 0" @click="bulkExport()">
+                        <i class="bi bi-download me-1"></i>一括エクスポート
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" :disabled="selectedEngineers.length === 0" @click="bulkAssign()">
+                        <i class="bi bi-diagram-3 me-1"></i>一括アサイン
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-grid me-1"></i>表示
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'card'">
+                                <i class="bi bi-grid-3x3-gap me-2"></i>カード表示
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'table'">
+                                <i class="bi bi-table me-2"></i>テーブル表示
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'skill-matrix'">
+                                <i class="bi bi-grid-fill me-2"></i>スキルマトリックス
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- カード表示 -->
+            <div x-show="viewMode === 'card'" class="row">
+                <template x-for="engineer in filteredEngineers" :key="engineer.id">
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card engineer-card h-100" @click="viewEngineer(engineer.id)">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="form-check" @click.stop>
+                                    <input class="form-check-input" type="checkbox" 
+                                           :value="engineer.id" 
+                                           x-model="selectedEngineers">
+                                </div>
+                                <span class="d-flex align-items-center">
+                                    <span class="status-indicator" :class="getStatusClass(engineer.status)"></span>
+                                    <span class="small text-muted" x-text="getStatusText(engineer.status)"></span>
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <img :src="engineer.avatar" class="rounded-circle me-3" width="48" height="48">
+                                    <div>
+                                        <h5 class="card-title mb-1" x-text="engineer.name"></h5>
+                                        <p class="text-muted small mb-0" x-text="engineer.title"></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span>経験年数</span>
+                                        <span x-text="`${engineer.experience}年`"></span>
+                                    </div>
+                                    <div class="experience-bar">
+                                        <div class="experience-fill" :style="`width: ${Math.min(engineer.experience * 5, 100)}%`"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="small text-muted">評価</span>
+                                        <div class="rating-stars">
+                                            <template x-for="i in 5" :key="i">
+                                                <i class="bi" :class="i <= engineer.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="small text-muted mb-1">主要スキル</div>
+                                    <template x-for="skill in engineer.topSkills" :key="skill">
+                                        <span class="skill-tag" x-text="skill"></span>
+                                    </template>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="small">
+                                        <div class="text-muted">稼働率</div>
+                                        <div class="fw-bold" x-text="`${engineer.workload}%`"></div>
+                                    </div>
+                                    <div class="small">
+                                        <div class="text-muted">単価</div>
+                                        <div class="fw-bold" x-text="formatCurrency(engineer.hourlyRate)"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm flex-fill" @click.stop="viewEngineer(engineer.id)">
+                                        <i class="bi bi-eye me-1"></i>詳細
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm flex-fill" @click.stop="editEngineer(engineer.id)">
+                                        <i class="bi bi-pencil me-1"></i>編集
+                                    </button>
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" @click.stop>
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="#" @click="assignToProject(engineer.id)">
+                                                <i class="bi bi-diagram-3 me-2"></i>案件アサイン
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" @click="updateSkills(engineer.id)">
+                                                <i class="bi bi-gear me-2"></i>スキル更新
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-danger" href="#" @click="archiveEngineer(engineer.id)">
+                                                <i class="bi bi-archive me-2"></i>アーカイブ
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- テーブル表示 -->
+            <div x-show="viewMode === 'table'" class="card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="50">
+                                    <input type="checkbox" class="form-check-input" x-model="selectAll" @change="toggleSelectAll()">
+                                </th>
+                                <th>技術者名</th>
+                                <th>ステータス</th>
+                                <th>経験年数</th>
+                                <th>主要スキル</th>
+                                <th>評価</th>
+                                <th>稼働率</th>
+                                <th>単価</th>
+                                <th>更新日</th>
+                                <th width="120">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="engineer in filteredEngineers" :key="engineer.id">
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input" 
+                                               :value="engineer.id" 
+                                               x-model="selectedEngineers">
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img :src="engineer.avatar" class="rounded-circle me-2" width="32" height="32">
+                                            <div>
+                                                <a href="#" class="text-decoration-none fw-medium" x-text="engineer.name" @click="viewEngineer(engineer.id)"></a>
+                                                <div class="text-muted small" x-text="engineer.title"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="d-flex align-items-center">
+                                            <span class="status-indicator" :class="getStatusClass(engineer.status)"></span>
+                                            <span x-text="getStatusText(engineer.status)"></span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span x-text="`${engineer.experience}年`"></span>
+                                    </td>
+                                    <td>
+                                        <template x-for="skill in engineer.topSkills.slice(0, 3)" :key="skill">
+                                            <span class="skill-tag me-1" x-text="skill"></span>
+                                        </template>
+                                        <span x-show="engineer.topSkills.length > 3" class="text-muted small">
+                                            +<span x-text="engineer.topSkills.length - 3"></span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="rating-stars small">
+                                            <template x-for="i in 5" :key="i">
+                                                <i class="bi" :class="i <= engineer.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                            </template>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span x-text="`${engineer.workload}%`"></span>
+                                    </td>
+                                    <td>
+                                        <span x-text="formatCurrency(engineer.hourlyRate)"></span>
+                                    </td>
+                                    <td>
+                                        <div class="small text-muted" x-text="formatDate(engineer.updatedAt)"></div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" @click="viewEngineer(engineer.id)" title="詳細">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @click="editEngineer(engineer.id)" title="編集">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <div class="dropdown">
+                                                <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
+                                                    <span class="visually-hidden">詳細メニュー</span>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li><a class="dropdown-item" href="#" @click="assignToProject(engineer.id)">
+                                                        <i class="bi bi-diagram-3 me-2"></i>案件アサイン
+                                                    </a></li>
+                                                    <li><a class="dropdown-item" href="#" @click="updateSkills(engineer.id)">
+                                                        <i class="bi bi-gear me-2"></i>スキル更新
+                                                    </a></li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li><a class="dropdown-item text-danger" href="#" @click="archiveEngineer(engineer.id)">
+                                                        <i class="bi bi-archive me-2"></i>アーカイブ
+                                                    </a></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- ページネーション -->
+            <nav class="mt-4" aria-label="ページネーション">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                        <button class="page-link" @click="goToPage(currentPage - 1)">前へ</button>
+                    </li>
+                    <template x-for="page in visiblePages" :key="page">
+                        <li class="page-item" :class="{ active: page === currentPage }">
+                            <button class="page-link" @click="goToPage(page)" x-text="page"></button>
+                        </li>
+                    </template>
+                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                        <button class="page-link" @click="goToPage(currentPage + 1)">次へ</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('engineerList', () => ({
+                // データ
+                engineers: [
+                    {
+                        id: 'eng-001',
+                        name: '田中太郎',
+                        title: 'シニアエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        status: 'AVAILABLE',
+                        experience: 8,
+                        rating: 4.5,
+                        topSkills: ['Java', 'Spring Boot', 'React', 'AWS'],
+                        workload: 0,
+                        hourlyRate: 8000,
+                        updatedAt: '2025-06-01',
+                        email: 'tanaka@example.com'
+                    },
+                    {
+                        id: 'eng-002',
+                        name: '佐藤花子',
+                        title: 'フロントエンドエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        status: 'BUSY',
+                        experience: 5,
+                        rating: 4.2,
+                        topSkills: ['React', 'TypeScript', 'Next.js', 'CSS'],
+                        workload: 80,
+                        hourlyRate: 6000,
+                        updatedAt: '2025-05-30',
+                        email: 'sato@example.com'
+                    },
+                    {
+                        id: 'eng-003',
+                        name: '鈴木一郎',
+                        title: 'バックエンドエンジニア',
+                        avatar: 'https://via.placeholder.com/48',
+                        status: 'AVAILABLE',
+                        experience: 12,
+                        rating: 4.8,
+                        topSkills: ['Python', 'Django', 'PostgreSQL', 'Docker'],
+                        workload: 20,
+                        hourlyRate: 9500,
+                        updatedAt: '2025-05-28',
+                        email: 'suzuki@example.com'
+                    }
+                ],
+                
+                // フィルター
+                filters: {
+                    keyword: '',
+                    status: '',
+                    experience: '',
+                    skills: '',
+                    rating: ''
+                },
+                
+                // UI状態
+                selectedEngineers: [],
+                selectAll: false,
+                viewMode: 'card',
+                currentPage: 1,
+                pageSize: 12,
+                totalCount: 3,
+                
+                // 計算プロパティ
+                get filteredEngineers() {
+                    return this.engineers; // 実際にはフィルタリングロジックを実装
+                },
+                
+                get totalPages() {
+                    return Math.ceil(this.totalCount / this.pageSize);
+                },
+                
+                get startIndex() {
+                    return (this.currentPage - 1) * this.pageSize + 1;
+                },
+                
+                get endIndex() {
+                    return Math.min(this.currentPage * this.pageSize, this.totalCount);
+                },
+                
+                get visiblePages() {
+                    const pages = [];
+                    const start = Math.max(1, this.currentPage - 2);
+                    const end = Math.min(this.totalPages, this.currentPage + 2);
+                    for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
+                },
+                
+                // メソッド
+                toggleSidebar() {
+                    console.log('サイドバー切り替え');
+                },
+                
+                searchEngineers() {
+                    console.log('検索実行', this.filters);
+                },
+                
+                resetFilters() {
+                    this.filters = { keyword: '', status: '', experience: '', skills: '', rating: '' };
+                },
+                
+                toggleSelectAll() {
+                    if (this.selectAll) {
+                        this.selectedEngineers = this.filteredEngineers.map(e => e.id);
+                    } else {
+                        this.selectedEngineers = [];
+                    }
+                },
+                
+                createEngineer() {
+                    console.log('技術者新規登録');
+                },
+                
+                viewEngineer(id) {
+                    console.log('技術者詳細表示', id);
+                },
+                
+                editEngineer(id) {
+                    console.log('技術者編集', id);
+                },
+                
+                assignToProject(id) {
+                    console.log('案件アサイン', id);
+                },
+                
+                updateSkills(id) {
+                    console.log('スキル更新', id);
+                },
+                
+                archiveEngineer(id) {
+                    if (confirm('この技術者をアーカイブしますか？')) {
+                        console.log('技術者アーカイブ', id);
+                    }
+                },
+                
+                goToPage(page) {
+                    if (page >= 1 && page <= this.totalPages) {
+                        this.currentPage = page;
+                    }
+                },
+                
+                getStatusClass(status) {
+                    const classes = {
+                        'AVAILABLE': 'status-available',
+                        'ASSIGNED': 'status-assigned',
+                        'BUSY': 'status-busy',
+                        'UNAVAILABLE': 'status-unavailable'
+                    };
+                    return classes[status] || 'status-unavailable';
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        'AVAILABLE': '稼働可能',
+                        'ASSIGNED': 'アサイン済',
+                        'BUSY': '稼働中',
+                        'UNAVAILABLE': '稼働不可'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY'
+                    }).format(amount);
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric'
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

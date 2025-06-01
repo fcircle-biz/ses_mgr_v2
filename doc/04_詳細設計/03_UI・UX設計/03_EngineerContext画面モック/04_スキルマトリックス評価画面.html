@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スキルマトリックス・評価 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .skill-matrix {
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+        
+        .skill-matrix table {
+            min-width: 800px;
+        }
+        
+        .skill-cell {
+            text-align: center;
+            vertical-align: middle;
+            position: relative;
+            min-width: 80px;
+            height: 60px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .skill-level-0 { background-color: #f8f9fa; color: #6c757d; }
+        .skill-level-1 { background-color: #ffebee; color: #c62828; }
+        .skill-level-2 { background-color: #fff3e0; color: #ef6c00; }
+        .skill-level-3 { background-color: #fff8e1; color: #f57f17; }
+        .skill-level-4 { background-color: #e8f5e8; color: #2e7d32; }
+        .skill-level-5 { background-color: #e3f2fd; color: #1565c0; }
+        
+        .engineer-name-cell {
+            position: sticky;
+            left: 0;
+            background: white;
+            border-right: 2px solid #dee2e6;
+            z-index: 10;
+            min-width: 150px;
+        }
+        
+        .skill-name-header {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            padding: 0.5rem;
+            min-height: 120px;
+            background: var(--ses-light);
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        .skill-legend {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .filter-section {
+            background: var(--ses-light);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+        }
+        
+        .engineer-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        .skill-chart-container {
+            height: 400px;
+            margin-bottom: 2rem;
+        }
+        
+        .evaluation-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .evaluation-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .rating-stars {
+            color: #ffc107;
+        }
+        
+        .trend-indicator {
+            font-size: 0.875rem;
+            font-weight: bold;
+        }
+        
+        .trend-up { color: var(--ses-success); }
+        .trend-down { color: var(--ses-danger); }
+        .trend-stable { color: var(--ses-secondary); }
+        
+        .heatmap-cell {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .heatmap-cell:hover {
+            border: 2px solid var(--ses-primary) !important;
+            transform: scale(1.05);
+        }
+        
+        .tooltip-custom {
+            position: absolute;
+            background: #000;
+            color: #fff;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .skill-gap-indicator {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .gap-critical { background-color: var(--ses-danger); }
+        .gap-moderate { background-color: var(--ses-warning); }
+        .gap-minor { background-color: var(--ses-success); }
+    </style>
+</head>
+<body x-data="skillMatrix" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">技術者管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">スキルマトリックス・評価</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">スキルマトリックス・評価</h1>
+                    <p class="text-muted mb-0">技術者のスキル分布と評価の可視化・分析</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportMatrix()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-primary" @click="generateReport()">
+                        <i class="bi bi-file-text me-1"></i>レポート生成
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-grid me-1"></i>表示切替
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'matrix'">
+                                <i class="bi bi-grid-fill me-2"></i>スキルマトリックス
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'chart'">
+                                <i class="bi bi-bar-chart me-2"></i>チャート分析
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="viewMode = 'evaluation'">
+                                <i class="bi bi-star me-2"></i>評価ダッシュボード
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- フィルター・コントロールエリア -->
+            <div class="filter-section">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">技術者フィルター</label>
+                        <select class="form-select" x-model="filters.engineer">
+                            <option value="">全技術者</option>
+                            <option value="available">稼働可能</option>
+                            <option value="busy">稼働中</option>
+                            <option value="senior">シニア以上</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">スキルカテゴリ</label>
+                        <select class="form-select" x-model="filters.skillCategory">
+                            <option value="">すべて</option>
+                            <option value="PROGRAMMING_LANGUAGE">プログラミング言語</option>
+                            <option value="FRAMEWORK">フレームワーク</option>
+                            <option value="DATABASE">データベース</option>
+                            <option value="CLOUD">クラウド</option>
+                            <option value="DEVOPS">DevOps</option>
+                            <option value="FRONTEND">フロントエンド</option>
+                            <option value="BACKEND">バックエンド</option>
+                            <option value="MOBILE">モバイル</option>
+                            <option value="TESTING">テスト</option>
+                            <option value="PROJECT_MANAGEMENT">プロジェクト管理</option>
+                            <option value="BUSINESS_SKILL">ビジネススキル</option>
+                            <option value="OTHER">その他</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">評価期間</label>
+                        <select class="form-select" x-model="filters.period">
+                            <option value="current">現在</option>
+                            <option value="3months">過去3ヶ月</option>
+                            <option value="6months">過去6ヶ月</option>
+                            <option value="1year">過去1年</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">表示オプション</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" x-model="options.showGaps">
+                            <label class="form-check-label">スキルギャップ表示</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" x-model="options.showTrends">
+                            <label class="form-check-label">トレンド表示</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- スキルマトリックス表示 -->
+            <div x-show="viewMode === 'matrix'">
+                <!-- 凡例 -->
+                <div class="skill-legend">
+                    <div class="legend-item">
+                        <div class="legend-color skill-level-0"></div>
+                        <span>0: スキルなし</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color skill-level-1"></div>
+                        <span>1: 初心者</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color skill-level-2"></div>
+                        <span>2: 基礎</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color skill-level-3"></div>
+                        <span>3: 中級</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color skill-level-4"></div>
+                        <span>4: 上級</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color skill-level-5"></div>
+                        <span>5: エキスパート</span>
+                    </div>
+                </div>
+                
+                <!-- マトリックステーブル -->
+                <div class="skill-matrix">
+                    <table class="table table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th class="engineer-name-cell">技術者</th>
+                                <template x-for="skill in filteredSkills" :key="skill.name">
+                                    <th class="skill-name-header">
+                                        <div x-text="skill.name"></div>
+                                    </th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="engineer in filteredEngineers" :key="engineer.id">
+                                <tr>
+                                    <td class="engineer-name-cell">
+                                        <div class="d-flex align-items-center">
+                                            <img :src="engineer.avatar" class="engineer-avatar">
+                                            <div>
+                                                <div class="fw-medium" x-text="engineer.name"></div>
+                                                <small class="text-muted" x-text="engineer.position"></small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <template x-for="skill in filteredSkills" :key="skill.name">
+                                        <td class="skill-cell heatmap-cell"
+                                            :class="`skill-level-${getSkillLevel(engineer.id, skill.name)}`"
+                                            @mouseenter="showTooltip($event, engineer, skill)"
+                                            @mouseleave="hideTooltip()"
+                                            @click="showSkillDetail(engineer.id, skill.name)">
+                                            <div class="position-relative">
+                                                <span x-text="getSkillLevel(engineer.id, skill.name)"></span>
+                                                <div x-show="options.showGaps && hasSkillGap(engineer.id, skill.name)"
+                                                     class="skill-gap-indicator"
+                                                     :class="getGapSeverity(engineer.id, skill.name)"></div>
+                                                <div x-show="options.showTrends"
+                                                     class="trend-indicator position-absolute bottom-0 end-0"
+                                                     :class="getTrendClass(engineer.id, skill.name)"
+                                                     x-text="getTrendIndicator(engineer.id, skill.name)"></div>
+                                            </div>
+                                        </td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- チャート分析表示 -->
+            <div x-show="viewMode === 'chart'">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-pie-chart me-2"></i>スキル分布
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="skill-chart-container">
+                                    <canvas id="skillDistributionChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-bar-chart me-2"></i>レベル別技術者数
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="skill-chart-container">
+                                    <canvas id="levelDistributionChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-graph-up me-2"></i>スキルトレンド分析
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="skill-chart-container">
+                                    <canvas id="skillTrendChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 評価ダッシュボード表示 -->
+            <div x-show="viewMode === 'evaluation'">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-star me-2"></i>技術者評価一覧
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <template x-for="engineer in filteredEngineers" :key="engineer.id">
+                                    <div class="evaluation-card">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-3">
+                                                <div class="d-flex align-items-center">
+                                                    <img :src="engineer.avatar" class="engineer-avatar">
+                                                    <div>
+                                                        <div class="fw-medium" x-text="engineer.name"></div>
+                                                        <small class="text-muted" x-text="engineer.position"></small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="text-center">
+                                                    <div class="rating-stars mb-1">
+                                                        <template x-for="i in 5" :key="i">
+                                                            <i class="bi" :class="i <= engineer.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                                        </template>
+                                                    </div>
+                                                    <small class="text-muted">総合評価</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="text-center">
+                                                    <div class="h6 mb-1" x-text="`${engineer.skillAverage}/5`">4.2/5</div>
+                                                    <small class="text-muted">スキル平均</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="text-center">
+                                                    <div class="h6 mb-1" x-text="engineer.completedProjects">12</div>
+                                                    <small class="text-muted">完了プロジェクト</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="text-center">
+                                                    <div class="h6 mb-1" x-text="formatCurrency(engineer.revenue)">¥8,000,000</div>
+                                                    <small class="text-muted">年間売上</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-1">
+                                                <div class="dropdown">
+                                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                                        <i class="bi bi-three-dots"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        <li><a class="dropdown-item" href="#" @click="viewDetailedEvaluation(engineer.id)">
+                                                            <i class="bi bi-eye me-2"></i>詳細評価
+                                                        </a></li>
+                                                        <li><a class="dropdown-item" href="#" @click="updateSkills(engineer.id)">
+                                                            <i class="bi bi-gear me-2"></i>スキル更新
+                                                        </a></li>
+                                                        <li><a class="dropdown-item" href="#" @click="assignToProject(engineer.id)">
+                                                            <i class="bi bi-diagram-3 me-2"></i>案件アサイン
+                                                        </a></li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- スキル強み・弱み -->
+                                        <div class="mt-3">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <small class="text-muted">強みスキル:</small>
+                                                    <template x-for="skill in engineer.strongSkills" :key="skill">
+                                                        <span class="badge bg-success me-1" x-text="skill"></span>
+                                                    </template>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <small class="text-muted">改善ポイント:</small>
+                                                    <template x-for="skill in engineer.improvementAreas" :key="skill">
+                                                        <span class="badge bg-warning me-1" x-text="skill"></span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <!-- スキルギャップ分析 -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>スキルギャップ分析
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <template x-for="gap in skillGaps" :key="gap.skill">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="fw-medium" x-text="gap.skill"></span>
+                                            <span class="badge" :class="getGapBadgeClass(gap.severity)" x-text="gap.severity"></span>
+                                        </div>
+                                        <div class="small text-muted" x-text="`不足人数: ${gap.shortage}人`"></div>
+                                        <div class="progress" style="height: 4px;">
+                                            <div class="progress-bar bg-warning" :style="`width: ${gap.percentage}%`"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- パフォーマンス上位者 -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-trophy me-2"></i>パフォーマンス上位者
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <template x-for="(performer, index) in topPerformers" :key="performer.id">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="fw-bold me-3" x-text="index + 1"></div>
+                                        <img :src="performer.avatar" class="engineer-avatar">
+                                        <div class="flex-grow-1">
+                                            <div class="fw-medium" x-text="performer.name"></div>
+                                            <div class="small text-muted" x-text="`評価: ${performer.rating}/5`"></div>
+                                        </div>
+                                        <div class="rating-stars">
+                                            <template x-for="i in 5" :key="i">
+                                                <i class="bi" :class="i <= performer.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ツールチップ -->
+            <div id="tooltip" class="tooltip-custom"></div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('skillMatrix', () => ({
+                viewMode: 'matrix',
+                
+                filters: {
+                    engineer: '',
+                    skillCategory: '',
+                    period: 'current'
+                },
+                
+                options: {
+                    showGaps: true,
+                    showTrends: true
+                },
+                
+                skills: [
+                    { name: 'Java', category: 'PROGRAMMING_LANGUAGE' },
+                    { name: 'Python', category: 'PROGRAMMING_LANGUAGE' },
+                    { name: 'JavaScript', category: 'PROGRAMMING_LANGUAGE' },
+                    { name: 'React', category: 'FRAMEWORK' },
+                    { name: 'Spring Boot', category: 'FRAMEWORK' },
+                    { name: 'PostgreSQL', category: 'DATABASE' },
+                    { name: 'MongoDB', category: 'DATABASE' },
+                    { name: 'AWS', category: 'CLOUD' },
+                    { name: 'Docker', category: 'DEVOPS' }
+                ],
+                
+                engineers: [
+                    {
+                        id: 'eng-001',
+                        name: '田中太郎',
+                        position: 'シニアエンジニア',
+                        avatar: 'https://via.placeholder.com/32',
+                        rating: 4.5,
+                        skillAverage: 4.2,
+                        completedProjects: 12,
+                        revenue: 8000000,
+                        strongSkills: ['Java', 'Spring Boot', 'AWS'],
+                        improvementAreas: ['React', 'MongoDB'],
+                        skills: {
+                            'Java': { level: 5, trend: 'stable' },
+                            'Python': { level: 3, trend: 'up' },
+                            'JavaScript': { level: 4, trend: 'up' },
+                            'React': { level: 3, trend: 'up' },
+                            'Spring Boot': { level: 5, trend: 'stable' },
+                            'PostgreSQL': { level: 4, trend: 'stable' },
+                            'MongoDB': { level: 2, trend: 'up' },
+                            'AWS': { level: 4, trend: 'up' },
+                            'Docker': { level: 3, trend: 'stable' }
+                        }
+                    },
+                    {
+                        id: 'eng-002',
+                        name: '佐藤花子',
+                        position: 'フロントエンドエンジニア',
+                        avatar: 'https://via.placeholder.com/32',
+                        rating: 4.2,
+                        skillAverage: 4.0,
+                        completedProjects: 8,
+                        revenue: 6000000,
+                        strongSkills: ['JavaScript', 'React'],
+                        improvementAreas: ['Java', 'AWS'],
+                        skills: {
+                            'Java': { level: 2, trend: 'up' },
+                            'Python': { level: 1, trend: 'stable' },
+                            'JavaScript': { level: 5, trend: 'stable' },
+                            'React': { level: 5, trend: 'up' },
+                            'Spring Boot': { level: 2, trend: 'up' },
+                            'PostgreSQL': { level: 3, trend: 'stable' },
+                            'MongoDB': { level: 4, trend: 'stable' },
+                            'AWS': { level: 2, trend: 'up' },
+                            'Docker': { level: 3, trend: 'up' }
+                        }
+                    }
+                ],
+                
+                skillGaps: [
+                    { skill: 'Kubernetes', severity: 'CRITICAL', shortage: 5, percentage: 80 },
+                    { skill: 'Go', severity: 'MODERATE', shortage: 3, percentage: 60 },
+                    { skill: 'Vue.js', severity: 'MINOR', shortage: 1, percentage: 20 }
+                ],
+                
+                topPerformers: [
+                    { id: 'eng-001', name: '田中太郎', rating: 4.5, avatar: 'https://via.placeholder.com/32' },
+                    { id: 'eng-002', name: '佐藤花子', rating: 4.2, avatar: 'https://via.placeholder.com/32' }
+                ],
+                
+                get filteredSkills() {
+                    return this.skills.filter(skill => {
+                        if (this.filters.skillCategory && skill.category !== this.filters.skillCategory) {
+                            return false;
+                        }
+                        return true;
+                    });
+                },
+                
+                get filteredEngineers() {
+                    return this.engineers.filter(engineer => {
+                        // フィルター処理を実装
+                        return true;
+                    });
+                },
+                
+                getSkillLevel(engineerId, skillName) {
+                    const engineer = this.engineers.find(e => e.id === engineerId);
+                    return engineer?.skills[skillName]?.level || 0;
+                },
+                
+                hasSkillGap(engineerId, skillName) {
+                    // スキルギャップがあるかどうかの判定ロジック
+                    const level = this.getSkillLevel(engineerId, skillName);
+                    return level < 3; // レベル3未満をギャップとみなす
+                },
+                
+                getGapSeverity(engineerId, skillName) {
+                    const level = this.getSkillLevel(engineerId, skillName);
+                    if (level === 0) return 'gap-critical';
+                    if (level <= 2) return 'gap-moderate';
+                    return 'gap-minor';
+                },
+                
+                getTrendClass(engineerId, skillName) {
+                    const engineer = this.engineers.find(e => e.id === engineerId);
+                    const trend = engineer?.skills[skillName]?.trend;
+                    return trend ? `trend-${trend}` : 'trend-stable';
+                },
+                
+                getTrendIndicator(engineerId, skillName) {
+                    const engineer = this.engineers.find(e => e.id === engineerId);
+                    const trend = engineer?.skills[skillName]?.trend;
+                    const indicators = { up: '↗', down: '↘', stable: '→' };
+                    return indicators[trend] || '→';
+                },
+                
+                getGapBadgeClass(severity) {
+                    const classes = {
+                        'CRITICAL': 'bg-danger',
+                        'MODERATE': 'bg-warning',
+                        'MINOR': 'bg-info'
+                    };
+                    return classes[severity] || 'bg-secondary';
+                },
+                
+                showTooltip(event, engineer, skill) {
+                    const tooltip = document.getElementById('tooltip');
+                    const level = this.getSkillLevel(engineer.id, skill.name);
+                    const trend = engineer.skills[skill.name]?.trend || 'stable';
+                    
+                    tooltip.innerHTML = `
+                        <strong>${engineer.name}</strong><br>
+                        ${skill.name}: レベル ${level}/5<br>
+                        トレンド: ${trend === 'up' ? '上昇' : trend === 'down' ? '下降' : '安定'}
+                    `;
+                    tooltip.style.left = event.pageX + 10 + 'px';
+                    tooltip.style.top = event.pageY - 10 + 'px';
+                    tooltip.style.opacity = '1';
+                },
+                
+                hideTooltip() {
+                    const tooltip = document.getElementById('tooltip');
+                    tooltip.style.opacity = '0';
+                },
+                
+                showSkillDetail(engineerId, skillName) {
+                    console.log('スキル詳細表示:', engineerId, skillName);
+                },
+                
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY'
+                    }).format(amount);
+                },
+                
+                exportMatrix() {
+                    console.log('マトリックスエクスポート');
+                },
+                
+                generateReport() {
+                    console.log('レポート生成');
+                },
+                
+                init() {
+                    this.initCharts();
+                },
+                
+                initCharts() {
+                    // チャートの初期化処理
+                    setTimeout(() => {
+                        this.initSkillDistributionChart();
+                        this.initLevelDistributionChart();
+                        this.initSkillTrendChart();
+                    }, 100);
+                },
+                
+                initSkillDistributionChart() {
+                    const ctx = document.getElementById('skillDistributionChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['プログラミング言語', 'フレームワーク', 'データベース', 'インフラ'],
+                            datasets: [{
+                                data: [30, 25, 20, 25],
+                                backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545']
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+                },
+                
+                initLevelDistributionChart() {
+                    const ctx = document.getElementById('levelDistributionChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['レベル1', 'レベル2', 'レベル3', 'レベル4', 'レベル5'],
+                            datasets: [{
+                                label: '技術者数',
+                                data: [2, 5, 8, 6, 4],
+                                backgroundColor: '#0d6efd'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+                },
+                
+                initSkillTrendChart() {
+                    const ctx = document.getElementById('skillTrendChart');
+                    if (!ctx) return;
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: 'Java',
+                                data: [4.2, 4.3, 4.3, 4.4, 4.4, 4.5],
+                                borderColor: '#0d6efd',
+                                tension: 0.1
+                            }, {
+                                label: 'React',
+                                data: [3.5, 3.6, 3.8, 3.9, 4.0, 4.1],
+                                borderColor: '#198754',
+                                tension: 0.1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

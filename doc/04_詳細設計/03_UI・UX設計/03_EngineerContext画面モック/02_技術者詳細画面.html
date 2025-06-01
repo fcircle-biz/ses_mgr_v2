@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技術者詳細 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .skill-progress {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .skill-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--ses-primary), var(--ses-success));
+            transition: width 0.3s ease;
+        }
+        
+        .certification-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .certification-card:hover {
+            border-color: var(--ses-primary);
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.1);
+        }
+        
+        .project-timeline {
+            position: relative;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+            padding-bottom: 1.5rem;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0.5rem;
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            border: 2px solid var(--ses-primary);
+            background: white;
+        }
+        
+        .timeline-item.completed::before {
+            background: var(--ses-success);
+            border-color: var(--ses-success);
+        }
+        
+        .timeline-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 0.875rem;
+            top: 1.25rem;
+            width: 2px;
+            height: calc(100% - 0.75rem);
+            background: #dee2e6;
+        }
+        
+        .rating-chart {
+            width: 100%;
+            height: 300px;
+        }
+        
+        .skill-tag {
+            display: inline-block;
+            background: #e9ecef;
+            color: #495057;
+            padding: 0.25rem 0.5rem;
+            margin: 0.125rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        
+        .status-available { color: var(--ses-success); }
+        .status-assigned { color: var(--ses-primary); }
+        .status-busy { color: var(--ses-warning); }
+        .status-unavailable { color: var(--ses-danger); }
+        
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .workload-gauge {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body x-data="engineerDetail" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">技術者管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">技術者詳細</li>
+                        </ol>
+                    </nav>
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <img :src="engineer.avatar" class="profile-avatar rounded-circle">
+                        <div>
+                            <h1 class="h3 mb-1" x-text="engineer.name">田中太郎</h1>
+                            <p class="text-muted mb-1" x-text="engineer.title">シニアエンジニア</p>
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="badge bg-primary" x-text="`${engineer.experience}年経験`">8年経験</span>
+                                <span :class="getStatusClass(engineer.status)" x-text="getStatusText(engineer.status)">稼働可能</span>
+                                <span class="text-muted">•</span>
+                                <div class="text-warning">
+                                    <template x-for="i in 5" :key="i">
+                                        <i class="bi" :class="i <= engineer.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                    </template>
+                                    <span class="ms-1" x-text="engineer.rating">4.5</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportProfile()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-primary" @click="assignToProject()">
+                        <i class="bi bi-diagram-3 me-1"></i>案件アサイン
+                    </button>
+                    <button class="btn btn-outline-warning" @click="toggleEditMode()" x-show="!editMode">
+                        <i class="bi bi-pencil me-1"></i>編集
+                    </button>
+                    <template x-if="editMode">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary" @click="cancelEdit()">
+                                <i class="bi bi-x me-1"></i>キャンセル
+                            </button>
+                            <button class="btn btn-primary" @click="saveProfile()">
+                                <i class="bi bi-check me-1"></i>保存
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <ul class="nav nav-tabs mb-4" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#profile" role="tab">
+                        <i class="bi bi-person me-1"></i>プロフィール
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#skills" role="tab">
+                        <i class="bi bi-gear me-1"></i>スキル・経験
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#projects" role="tab">
+                        <i class="bi bi-briefcase me-1"></i>プロジェクト履歴
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#evaluation" role="tab">
+                        <i class="bi bi-star me-1"></i>評価・レビュー
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#attendance" role="tab">
+                        <i class="bi bi-clock me-1"></i>勤怠・稼働
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- タブコンテンツ -->
+            <div class="tab-content">
+                <!-- プロフィールタブ -->
+                <div class="tab-pane fade show active" id="profile" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- 基本情報 -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-person-badge me-2"></i>基本情報
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">氏名 <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" x-model="editData.name" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">フリガナ</label>
+                                            <input type="text" class="form-control" x-model="editData.nameKana" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">メールアドレス</label>
+                                            <input type="email" class="form-control" x-model="editData.email" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">電話番号</label>
+                                            <input type="tel" class="form-control" x-model="editData.phone" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">生年月日</label>
+                                            <input type="date" class="form-control" x-model="editData.birthDate" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">入社日</label>
+                                            <input type="date" class="form-control" x-model="editData.joinDate" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label">住所</label>
+                                            <input type="text" class="form-control" x-model="editData.address" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">職位</label>
+                                            <select class="form-select" x-model="editData.position" :disabled="!editMode">
+                                                <option value="JUNIOR">ジュニアエンジニア</option>
+                                                <option value="REGULAR">エンジニア</option>
+                                                <option value="SENIOR">シニアエンジニア</option>
+                                                <option value="LEAD">リードエンジニア</option>
+                                                <option value="MANAGER">マネージャー</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">雇用形態</label>
+                                            <select class="form-select" x-model="editData.employmentType" :disabled="!editMode">
+                                                <option value="FULLTIME">正社員</option>
+                                                <option value="CONTRACT">契約社員</option>
+                                                <option value="PARTTIME">パートタイム</option>
+                                                <option value="FREELANCE">フリーランス</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 連絡先・緊急連絡先 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-telephone me-2"></i>連絡先情報
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">緊急連絡先</label>
+                                            <input type="text" class="form-control" x-model="editData.emergencyContact" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">緊急連絡先関係</label>
+                                            <input type="text" class="form-control" x-model="editData.emergencyRelation" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">緊急連絡先電話番号</label>
+                                            <input type="tel" class="form-control" x-model="editData.emergencyPhone" :readonly="!editMode">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Slack ID</label>
+                                            <input type="text" class="form-control" x-model="editData.slackId" :readonly="!editMode">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- 稼働状況 -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-activity me-2"></i>現在の稼働状況
+                                    </h6>
+                                </div>
+                                <div class="card-body text-center">
+                                    <div class="workload-gauge mb-3">
+                                        <canvas id="workloadChart"></canvas>
+                                    </div>
+                                    <div class="h4 mb-1" x-text="`${engineer.workload}%`">80%</div>
+                                    <div class="text-muted small">稼働率</div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between small">
+                                        <span>現在案件数</span>
+                                        <span class="fw-medium" x-text="engineer.currentProjects">2件</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small">
+                                        <span>月間想定工数</span>
+                                        <span class="fw-medium" x-text="`${engineer.monthlyHours}h`">160h</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 経済情報 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-currency-yen me-2"></i>経済情報
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">時間単価</span>
+                                            <span class="fw-medium" x-text="formatCurrency(engineer.hourlyRate)">¥8,000</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">月額単価</span>
+                                            <span class="fw-medium" x-text="formatCurrency(engineer.monthlyRate)">¥800,000</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">今月売上</span>
+                                            <span class="fw-medium text-success" x-text="formatCurrency(engineer.monthlySales)">¥640,000</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <button class="btn btn-outline-primary btn-sm w-100" @click="viewFinancialHistory()">
+                                        <i class="bi bi-graph-up me-1"></i>売上履歴
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- スキル・経験タブ -->
+                <div class="tab-pane fade" id="skills" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- 技術スキル -->
+                            <div class="card mb-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-gear me-2"></i>技術スキル
+                                    </h5>
+                                    <button class="btn btn-outline-primary btn-sm" x-show="editMode" @click="addSkill()">
+                                        <i class="bi bi-plus me-1"></i>スキル追加
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="skill in engineer.skills" :key="skill.name">
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-medium" x-text="skill.name"></span>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge bg-light text-dark" x-text="skill.category"></span>
+                                                    <span class="small text-muted" x-text="`${skill.experience}年`"></span>
+                                                    <button x-show="editMode" class="btn btn-outline-danger btn-sm" @click="removeSkill(skill.name)">
+                                                        <i class="bi bi-x"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="skill-progress">
+                                                <div class="skill-progress-fill" :style="`width: ${skill.level}%`"></div>
+                                            </div>
+                                            <div class="d-flex justify-content-between small text-muted mt-1">
+                                                <span>レベル</span>
+                                                <span x-text="`${skill.level}/100`"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            
+                            <!-- 経験プロジェクト -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-briefcase me-2"></i>主要プロジェクト経験
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="project in engineer.majorProjects" :key="project.id">
+                                        <div class="mb-3 p-3 border rounded">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="mb-1" x-text="project.name"></h6>
+                                                <span class="badge bg-primary" x-text="project.role"></span>
+                                            </div>
+                                            <p class="text-muted small mb-2" x-text="project.description"></p>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <template x-for="tech in project.technologies" :key="tech">
+                                                        <span class="skill-tag" x-text="tech"></span>
+                                                    </template>
+                                                </div>
+                                                <small class="text-muted" x-text="`${project.startDate} - ${project.endDate}`"></small>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- 認証・資格 -->
+                            <div class="card mb-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-award me-2"></i>認証・資格
+                                    </h6>
+                                    <button class="btn btn-outline-primary btn-sm" x-show="editMode">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="cert in engineer.certifications" :key="cert.id">
+                                        <div class="certification-card">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="mb-1" x-text="cert.name"></h6>
+                                                <span class="badge" :class="cert.isValid ? 'bg-success' : 'bg-secondary'" 
+                                                      x-text="cert.isValid ? '有効' : '期限切れ'"></span>
+                                            </div>
+                                            <div class="small text-muted mb-1" x-text="cert.issuer"></div>
+                                            <div class="small text-muted" x-text="`取得日: ${cert.obtainedDate}`"></div>
+                                            <div class="small text-muted" x-show="cert.expiryDate" x-text="`期限: ${cert.expiryDate}`"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            
+                            <!-- スキル統計 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-pie-chart me-2"></i>スキル分布
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="skillChart" width="400" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- プロジェクト履歴タブ -->
+                <div class="tab-pane fade" id="projects" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history me-2"></i>プロジェクト履歴
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="project-timeline">
+                                <template x-for="project in engineer.projectHistory" :key="project.id">
+                                    <div class="timeline-item" :class="{ 'completed': project.status === 'COMPLETED' }">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1" x-text="project.name"></h6>
+                                                <p class="text-muted small mb-2" x-text="project.description"></p>
+                                                <div class="mb-2">
+                                                    <span class="badge bg-light text-dark me-2" x-text="project.role"></span>
+                                                    <span class="badge" :class="getProjectStatusClass(project.status)" x-text="getProjectStatusText(project.status)"></span>
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <span x-text="`${project.startDate} - ${project.endDate || '進行中'}`"></span>
+                                                    <span class="mx-2">•</span>
+                                                    <span x-text="`稼働率: ${project.workload}%`"></span>
+                                                </div>
+                                            </div>
+                                            <div class="text-end">
+                                                <div class="fw-medium" x-text="formatCurrency(project.totalSales)"></div>
+                                                <div class="small text-muted">売上</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 評価・レビュータブ -->
+                <div class="tab-pane fade" id="evaluation" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-chat-square-text me-2"></i>レビュー・フィードバック
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="review in engineer.reviews" :key="review.id">
+                                        <div class="mb-4 p-3 border rounded">
+                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                <div class="d-flex align-items-center">
+                                                    <img :src="review.reviewer.avatar" class="rounded-circle me-2" width="32" height="32">
+                                                    <div>
+                                                        <div class="fw-medium" x-text="review.reviewer.name"></div>
+                                                        <div class="small text-muted" x-text="review.reviewer.title"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="text-end">
+                                                    <div class="text-warning mb-1">
+                                                        <template x-for="i in 5" :key="i">
+                                                            <i class="bi" :class="i <= review.rating ? 'bi-star-fill' : 'bi-star'"></i>
+                                                        </template>
+                                                    </div>
+                                                    <div class="small text-muted" x-text="formatDate(review.reviewDate)"></div>
+                                                </div>
+                                            </div>
+                                            <p class="mb-2" x-text="review.comment"></p>
+                                            <div class="small text-muted">
+                                                プロジェクト: <span x-text="review.projectName"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-graph-up me-2"></i>評価トレンド
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="ratingChart" class="rating-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 勤怠・稼働タブ -->
+                <div class="tab-pane fade" id="attendance" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-calendar-check me-2"></i>今月の勤怠状況
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>日付</th>
+                                                    <th>出勤時刻</th>
+                                                    <th>退勤時刻</th>
+                                                    <th>勤務時間</th>
+                                                    <th>残業時間</th>
+                                                    <th>ステータス</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="record in engineer.attendanceRecords" :key="record.date">
+                                                    <tr>
+                                                        <td x-text="formatDate(record.date)"></td>
+                                                        <td x-text="record.startTime"></td>
+                                                        <td x-text="record.endTime"></td>
+                                                        <td x-text="`${record.workHours}h`"></td>
+                                                        <td x-text="`${record.overtimeHours}h`"></td>
+                                                        <td>
+                                                            <span class="badge" :class="getAttendanceStatusClass(record.status)" 
+                                                                  x-text="record.status"></span>
+                                                        </td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-clock me-2"></i>今月の勤務統計
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">実労働時間</span>
+                                            <span class="fw-medium" x-text="`${engineer.monthlyStats.workHours}h`">160h</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">残業時間</span>
+                                            <span class="fw-medium" x-text="`${engineer.monthlyStats.overtimeHours}h`">20h</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">有給取得</span>
+                                            <span class="fw-medium" x-text="`${engineer.monthlyStats.paidLeave}日`">1日</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-muted">出勤率</span>
+                                            <span class="fw-medium" x-text="`${engineer.monthlyStats.attendanceRate}%`">95%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>アラート
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <template x-for="alert in engineer.alerts" :key="alert.id">
+                                        <div class="alert alert-warning alert-sm">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>
+                                            <span x-text="alert.message"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('engineerDetail', () => ({
+                editMode: false,
+                
+                engineer: {
+                    id: 'eng-001',
+                    name: '田中太郎',
+                    nameKana: 'タナカタロウ',
+                    title: 'シニアエンジニア',
+                    avatar: 'https://via.placeholder.com/120',
+                    status: 'AVAILABLE',
+                    experience: 8,
+                    rating: 4.5,
+                    email: 'tanaka@example.com',
+                    phone: '090-1234-5678',
+                    birthDate: '1990-05-15',
+                    joinDate: '2017-04-01',
+                    address: '東京都渋谷区...',
+                    position: 'SENIOR',
+                    employmentType: 'FULLTIME',
+                    emergencyContact: '田中花子',
+                    emergencyRelation: '配偶者',
+                    emergencyPhone: '090-8765-4321',
+                    slackId: '@tanaka.taro',
+                    workload: 80,
+                    currentProjects: 2,
+                    monthlyHours: 160,
+                    hourlyRate: 8000,
+                    monthlyRate: 800000,
+                    monthlySales: 640000,
+                    skills: [
+                        { name: 'Java', category: 'バックエンド', level: 85, experience: 8 },
+                        { name: 'Spring Boot', category: 'フレームワーク', level: 80, experience: 5 },
+                        { name: 'React', category: 'フロントエンド', level: 70, experience: 3 },
+                        { name: 'PostgreSQL', category: 'データベース', level: 75, experience: 6 },
+                        { name: 'AWS', category: 'インフラ', level: 65, experience: 4 }
+                    ],
+                    certifications: [
+                        { id: 1, name: 'AWS Solutions Architect', issuer: 'Amazon', obtainedDate: '2023-03-15', expiryDate: '2026-03-15', isValid: true },
+                        { id: 2, name: 'Oracle Java SE 11', issuer: 'Oracle', obtainedDate: '2022-06-20', expiryDate: null, isValid: true }
+                    ],
+                    majorProjects: [
+                        {
+                            id: 1,
+                            name: 'ECサイトリニューアル',
+                            description: '既存ECサイトの全面刷新',
+                            role: 'リードエンジニア',
+                            technologies: ['Java', 'Spring Boot', 'React'],
+                            startDate: '2024-01-01',
+                            endDate: '2024-12-31'
+                        }
+                    ],
+                    projectHistory: [
+                        {
+                            id: 1,
+                            name: 'ECサイトリニューアル',
+                            description: '既存ECサイトの全面刷新プロジェクト',
+                            role: 'リードエンジニア',
+                            status: 'IN_PROGRESS',
+                            startDate: '2024-01-01',
+                            endDate: null,
+                            workload: 80,
+                            totalSales: 6400000
+                        }
+                    ],
+                    reviews: [
+                        {
+                            id: 1,
+                            reviewer: { name: '山田PM', title: 'プロジェクトマネージャー', avatar: 'https://via.placeholder.com/32' },
+                            rating: 5,
+                            comment: '技術力が高く、チームを引っ張ってくれる頼れるエンジニアです。',
+                            projectName: 'ECサイトリニューアル',
+                            reviewDate: '2025-05-01'
+                        }
+                    ],
+                    attendanceRecords: [
+                        { date: '2025-06-01', startTime: '09:00', endTime: '18:00', workHours: 8, overtimeHours: 0, status: '出勤' },
+                        { date: '2025-05-31', startTime: '09:15', endTime: '19:30', workHours: 9.25, overtimeHours: 1.25, status: '出勤' }
+                    ],
+                    monthlyStats: {
+                        workHours: 160,
+                        overtimeHours: 20,
+                        paidLeave: 1,
+                        attendanceRate: 95
+                    },
+                    alerts: [
+                        { id: 1, message: '今月の残業時間が20時間を超えています' }
+                    ]
+                },
+                
+                editData: {},
+                
+                init() {
+                    this.editData = JSON.parse(JSON.stringify(this.engineer));
+                    this.initCharts();
+                },
+                
+                initCharts() {
+                    // 稼働率ゲージチャート
+                    const workloadCtx = document.getElementById('workloadChart').getContext('2d');
+                    new Chart(workloadCtx, {
+                        type: 'doughnut',
+                        data: {
+                            datasets: [{
+                                data: [this.engineer.workload, 100 - this.engineer.workload],
+                                backgroundColor: ['#0d6efd', '#e9ecef'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '70%',
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
+                    
+                    // スキルチャート
+                    const skillCtx = document.getElementById('skillChart').getContext('2d');
+                    new Chart(skillCtx, {
+                        type: 'radar',
+                        data: {
+                            labels: this.engineer.skills.map(s => s.name),
+                            datasets: [{
+                                label: 'スキルレベル',
+                                data: this.engineer.skills.map(s => s.level),
+                                backgroundColor: 'rgba(13, 110, 253, 0.2)',
+                                borderColor: '#0d6efd',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    max: 100
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                toggleEditMode() {
+                    this.editMode = !this.editMode;
+                    if (this.editMode) {
+                        this.editData = JSON.parse(JSON.stringify(this.engineer));
+                    }
+                },
+                
+                cancelEdit() {
+                    this.editMode = false;
+                    this.editData = JSON.parse(JSON.stringify(this.engineer));
+                },
+                
+                saveProfile() {
+                    console.log('保存データ:', this.editData);
+                    this.engineer = JSON.parse(JSON.stringify(this.editData));
+                    this.editMode = false;
+                    alert('プロフィールを保存しました。');
+                },
+                
+                getStatusClass(status) {
+                    const classes = {
+                        'AVAILABLE': 'status-available',
+                        'ASSIGNED': 'status-assigned',
+                        'BUSY': 'status-busy',
+                        'UNAVAILABLE': 'status-unavailable'
+                    };
+                    return classes[status] || 'status-unavailable';
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        'AVAILABLE': '稼働可能',
+                        'ASSIGNED': 'アサイン済',
+                        'BUSY': '稼働中',
+                        'UNAVAILABLE': '稼働不可'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                getProjectStatusClass(status) {
+                    const classes = {
+                        'IN_PROGRESS': 'bg-primary',
+                        'COMPLETED': 'bg-success',
+                        'CANCELLED': 'bg-danger'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                getProjectStatusText(status) {
+                    const texts = {
+                        'IN_PROGRESS': '進行中',
+                        'COMPLETED': '完了',
+                        'CANCELLED': 'キャンセル'
+                    };
+                    return texts[status] || '不明';
+                },
+                
+                getAttendanceStatusClass(status) {
+                    const classes = {
+                        '出勤': 'bg-success',
+                        '遅刻': 'bg-warning',
+                        '欠勤': 'bg-danger',
+                        '有給': 'bg-info'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY'
+                    }).format(amount);
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

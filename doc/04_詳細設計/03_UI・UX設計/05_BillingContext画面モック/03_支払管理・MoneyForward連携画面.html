@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>支払管理・MoneyForward連携 - SES業務システム</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    
+    <!-- カスタムCSS -->
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --ses-primary: #0d6efd;
+            --ses-secondary: #6c757d;
+            --ses-success: #198754;
+            --ses-warning: #ffc107;
+            --ses-danger: #dc3545;
+            --ses-light: #f8f9fa;
+            --ses-info: #0dcaf0;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background-color: #212529;
+            z-index: 1000;
+        }
+        
+        .navbar {
+            height: var(--header-height);
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .payment-header {
+            background: linear-gradient(135deg, var(--ses-success), #0d5e2a);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.375rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            background: white;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .payment-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .payment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .payment-card.status-matched { border-left-color: var(--ses-success); }
+        .payment-card.status-partially-matched { border-left-color: var(--ses-warning); }
+        .payment-card.status-unmatched { border-left-color: var(--ses-danger); }
+        .payment-card.status-manual-review { border-left-color: var(--ses-info); }
+        .payment-card.status-approved { border-left-color: var(--ses-primary); }
+        .payment-card.status-rejected { border-left-color: var(--ses-secondary); }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 1rem;
+        }
+        
+        .amount-display {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        
+        .moneyforward-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            border: 1px solid;
+        }
+        
+        .mf-synced {
+            background: #e8f5e8;
+            border-color: var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .mf-pending {
+            background: #fff3e0;
+            border-color: var(--ses-warning);
+            color: var(--ses-warning);
+        }
+        
+        .mf-error {
+            background: #ffebee;
+            border-color: var(--ses-danger);
+            color: var(--ses-danger);
+        }
+        
+        .filter-section {
+            background: var(--ses-light);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+        }
+        
+        .reconciliation-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        
+        .recon-matched {
+            background: #e8f5e8;
+            border: 1px solid var(--ses-success);
+            color: var(--ses-success);
+        }
+        
+        .recon-partial {
+            background: #fff3e0;
+            border: 1px solid var(--ses-warning);
+            color: var(--ses-warning);
+        }
+        
+        .recon-unmatched {
+            background: #ffebee;
+            border: 1px solid var(--ses-danger);
+            color: var(--ses-danger);
+        }
+        
+        .recon-review {
+            background: #e3f2fd;
+            border: 1px solid var(--ses-info);
+            color: var(--ses-info);
+        }
+        
+        .credit-gauge {
+            position: relative;
+            width: 120px;
+            height: 60px;
+            margin: 0 auto;
+        }
+        
+        .credit-gauge canvas {
+            transform: rotate(-90deg);
+        }
+        
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.375rem;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--ses-primary);
+            background: rgba(13, 110, 253, 0.05);
+        }
+        
+        .upload-area.dragover {
+            border-color: var(--ses-success);
+            background: rgba(25, 135, 84, 0.1);
+        }
+        
+        .processing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--ses-light);
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        
+        .progress-tracker {
+            position: sticky;
+            top: 20px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1.5rem;
+        }
+        
+        .sync-timeline {
+            position: relative;
+            padding-left: 1.5rem;
+        }
+        
+        .sync-timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background: #dee2e6;
+        }
+        
+        .sync-step {
+            position: relative;
+            margin-bottom: 1rem;
+            padding-left: 1rem;
+        }
+        
+        .sync-step::before {
+            content: '';
+            position: absolute;
+            left: -0.375rem;
+            top: 0.25rem;
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            background: #dee2e6;
+        }
+        
+        .sync-step.completed::before {
+            background: var(--ses-success);
+        }
+        
+        .sync-step.active::before {
+            background: var(--ses-primary);
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 0.25rem;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .payment-card:hover .quick-actions {
+            opacity: 1;
+        }
+        
+        .bulk-actions {
+            background: var(--ses-light);
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .bulk-actions.active {
+            display: block;
+        }
+        
+        .match-confidence {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+        }
+        
+        .confidence-bar {
+            width: 50px;
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .confidence-high { background: var(--ses-success); }
+        .confidence-medium { background: var(--ses-warning); }
+        .confidence-low { background: var(--ses-danger); }
+    </style>
+</head>
+<body x-data="paymentManagement" x-cloak>
+    
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container-fluid">
+            <button class="btn btn-outline-secondary me-3" @click="toggleSidebar()">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="#">SES業務システム</a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>山田太郎
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- サイドバー -->
+    <nav class="sidebar text-white">
+        <div class="p-3">
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-briefcase me-2"></i>案件管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-people me-2"></i>技術者管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-search-heart me-2"></i>マッチング
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-file-earmark-text me-2"></i>契約管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-clock me-2"></i>勤怠管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white active" href="#">
+                        <i class="bi bi-receipt me-2"></i>請求管理
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white-50" href="#">
+                        <i class="bi bi-graph-up me-2"></i>レポート
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container-fluid p-4">
+            <!-- ページヘッダー -->
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">請求管理</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">支払管理・MoneyForward連携</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3 mb-2">支払管理・MoneyForward連携</h1>
+                    <p class="text-muted mb-0">入金記録・照合管理・MoneyForward同期・与信管理</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @click="exportPayments()">
+                        <i class="bi bi-download me-1"></i>エクスポート
+                    </button>
+                    <button class="btn btn-outline-info" @click="syncMoneyForward()">
+                        <i class="bi bi-cloud me-1"></i>MF同期実行
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-plus me-1"></i>新規作成
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" @click="recordPayment()">
+                                <i class="bi bi-currency-yen me-2"></i>入金記録
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" @click="uploadBankStatement()">
+                                <i class="bi bi-upload me-2"></i>銀行明細アップロード
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 支払統計サマリー -->
+            <div class="payment-header">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <h4 class="mb-3">支払・入金統計サマリー</h4>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-success" x-text="formatCurrency(stats.totalReceived)">¥18,500,000</div>
+                                    <div class="small">今月入金</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-warning" x-text="stats.unmatchedCount">12</div>
+                                    <div class="small">未照合件数</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-info" x-text="stats.reconciliationRate + '%'">96%</div>
+                                    <div class="small">自動照合率</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stats-number text-primary" x-text="formatCurrency(stats.creditLimit)">¥50,000,000</div>
+                                    <div class="small">総与信枠</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="processing-indicator" x-show="syncStatus.isRunning">
+                            <div class="spinner-border spinner-border-sm text-light" role="status"></div>
+                            <span x-text="syncStatus.message">MoneyForward同期実行中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- タブナビゲーション -->
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item">
+                            <button class="nav-link" :class="{ active: activeTab === 'payments' }" @click="activeTab = 'payments'">
+                                <i class="bi bi-currency-yen me-1"></i>入金管理
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="{ active: activeTab === 'reconciliation' }" @click="activeTab = 'reconciliation'">
+                                <i class="bi bi-search me-1"></i>照合管理
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="{ active: activeTab === 'moneyforward' }" @click="activeTab = 'moneyforward'">
+                                <i class="bi bi-cloud me-1"></i>MoneyForward連携
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" :class="{ active: activeTab === 'credit' }" @click="activeTab = 'credit'">
+                                <i class="bi bi-shield-check me-1"></i>与信管理
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="card-body">
+                    <!-- 入金管理タブ -->
+                    <div x-show="activeTab === 'payments'">
+                        <!-- フィルター・検索エリア -->
+                        <div class="filter-section">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">検索キーワード</label>
+                                    <input type="text" class="form-control" placeholder="顧客名・請求書番号・振込名義" x-model="filters.keyword">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">支払方法</label>
+                                    <select class="form-select" x-model="filters.paymentMethod">
+                                        <option value="">すべて</option>
+                                        <option value="BANK_TRANSFER">銀行振込</option>
+                                        <option value="CREDIT_CARD">クレジットカード</option>
+                                        <option value="CHECK">小切手</option>
+                                        <option value="CASH">現金</option>
+                                        <option value="OTHER">その他</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">照合状況</label>
+                                    <select class="form-select" x-model="filters.reconciliationStatus">
+                                        <option value="">すべて</option>
+                                        <option value="MATCHED">照合済み</option>
+                                        <option value="PARTIALLY_MATCHED">一部照合</option>
+                                        <option value="UNMATCHED">未照合</option>
+                                        <option value="MANUAL_REVIEW">要確認</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">入金日（開始）</label>
+                                    <input type="date" class="form-control" x-model="filters.paymentDateFrom">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">入金日（終了）</label>
+                                    <input type="date" class="form-control" x-model="filters.paymentDateTo">
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-primary" @click="searchPayments()">
+                                            <i class="bi bi-search me-1"></i>検索
+                                        </button>
+                                        <button class="btn btn-outline-secondary" @click="resetFilters()">
+                                            <i class="bi bi-x-circle me-1"></i>リセット
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 一括操作エリア -->
+                        <div class="bulk-actions" :class="{ active: selectedPayments.length > 0 }">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong x-text="`${selectedPayments.length}件選択中`"></strong>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" @click="bulkReconcile()">
+                                        <i class="bi bi-search me-1"></i>一括照合
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm" @click="bulkSyncMF()">
+                                        <i class="bi bi-cloud me-1"></i>MF一括同期
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" @click="bulkExport()">
+                                        <i class="bi bi-download me-1"></i>一括エクスポート
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 入金一覧 -->
+                        <div class="row">
+                            <template x-for="payment in filteredPayments" :key="payment.id">
+                                <div class="col-lg-6 col-xl-4 mb-4">
+                                    <div class="payment-card" 
+                                         :class="[`status-${payment.reconciliationStatus.toLowerCase().replace('_', '-')}`]"
+                                         @click="viewPayment(payment.id)">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <div class="form-check" @click.stop>
+                                                <input class="form-check-input" type="checkbox" 
+                                                       :value="payment.id" 
+                                                       x-model="selectedPayments">
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="status-badge" :class="getReconciliationClass(payment.reconciliationStatus)" x-text="getReconciliationText(payment.reconciliationStatus)"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <h6 class="mb-1" x-text="payment.invoiceNumber">INV-2025-001</h6>
+                                            <div class="mb-2">
+                                                <div class="fw-medium" x-text="payment.customerName"></div>
+                                                <div class="small text-muted" x-text="payment.projectName"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <div class="amount-display text-success" x-text="formatCurrency(payment.amount)">¥800,000</div>
+                                            <div class="small text-muted">
+                                                入金日: <span x-text="formatDate(payment.paymentDate)"></span>
+                                            </div>
+                                            <div class="small text-muted">
+                                                支払方法: <span x-text="getPaymentMethodText(payment.paymentMethod)"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 照合情報 -->
+                                        <div class="mb-3">
+                                            <div class="reconciliation-status" :class="getReconciliationClass(payment.reconciliationStatus)">
+                                                <i class="bi" :class="getReconciliationIcon(payment.reconciliationStatus)"></i>
+                                                <span x-text="getReconciliationText(payment.reconciliationStatus)"></span>
+                                            </div>
+                                            <div class="match-confidence mt-1" x-show="payment.matchConfidence">
+                                                <span class="small text-muted">信頼度:</span>
+                                                <div class="confidence-bar">
+                                                    <div class="confidence-fill" 
+                                                         :class="getConfidenceClass(payment.matchConfidence)"
+                                                         :style="`width: ${payment.matchConfidence}%`"></div>
+                                                </div>
+                                                <span class="small" x-text="`${payment.matchConfidence}%`"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- MoneyForward連携ステータス -->
+                                        <div class="mb-3">
+                                            <div class="moneyforward-status" :class="getMoneyForwardClass(payment.moneyForwardStatus)">
+                                                <i class="bi" :class="getMoneyForwardIcon(payment.moneyForwardStatus)"></i>
+                                                <span x-text="getMoneyForwardText(payment.moneyForwardStatus)"></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- クイックアクション -->
+                                        <div class="quick-actions">
+                                            <button class="btn btn-outline-primary btn-sm" @click.stop="viewPayment(payment.id)" title="詳細">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm" @click.stop="editPayment(payment.id)" title="編集">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-success btn-sm" @click.stop="reconcilePayment(payment.id)" title="照合" x-show="payment.reconciliationStatus === 'UNMATCHED'">
+                                                <i class="bi bi-search"></i>
+                                            </button>
+                                            <button class="btn btn-outline-info btn-sm" @click.stop="syncToMF(payment.id)" title="MF同期" x-show="payment.moneyForwardStatus !== 'synced'">
+                                                <i class="bi bi-cloud"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- 照合管理タブ -->
+                    <div x-show="activeTab === 'reconciliation'">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <!-- 銀行明細アップロード -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-upload me-2"></i>銀行明細アップロード・自動照合</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="upload-area" @click="$refs.fileInput.click()" 
+                                             @dragover.prevent="$event.target.classList.add('dragover')"
+                                             @dragleave.prevent="$event.target.classList.remove('dragover')"
+                                             @drop.prevent="handleFileDrop($event)">
+                                            <i class="bi bi-cloud-upload display-4 text-muted mb-2"></i>
+                                            <p class="mb-2">銀行明細ファイルをドラッグ&ドロップまたはクリックして選択</p>
+                                            <p class="small text-muted">対応形式: CSV, Excel (.xlsx)</p>
+                                            <input type="file" class="d-none" x-ref="fileInput" @change="handleFileSelect($event)" accept=".csv,.xlsx">
+                                        </div>
+                                        
+                                        <div class="row mt-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">銀行口座</label>
+                                                <select class="form-select" x-model="uploadConfig.accountId">
+                                                    <option value="">選択してください</option>
+                                                    <template x-for="account in bankAccounts" :key="account.id">
+                                                        <option :value="account.id" x-text="`${account.bankName} ${account.accountNumber}`"></option>
+                                                    </template>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">明細日付</label>
+                                                <input type="date" class="form-control" x-model="uploadConfig.statementDate">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="d-flex gap-2 mt-3">
+                                            <button class="btn btn-primary" @click="startReconciliation()" :disabled="!uploadConfig.file">
+                                                <i class="bi bi-play me-1"></i>照合開始
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @click="previewFile()" :disabled="!uploadConfig.file">
+                                                <i class="bi bi-eye me-1"></i>プレビュー
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 照合結果一覧 -->
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="bi bi-list me-2"></i>照合結果一覧</h6>
+                                        <div class="d-flex gap-2">
+                                            <select class="form-select form-select-sm" x-model="reconciliationFilter.status">
+                                                <option value="">すべての状況</option>
+                                                <option value="MATCHED">照合済み</option>
+                                                <option value="PARTIALLY_MATCHED">一部照合</option>
+                                                <option value="UNMATCHED">未照合</option>
+                                                <option value="MANUAL_REVIEW">要確認</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>銀行取引ID</th>
+                                                        <th>取引日</th>
+                                                        <th>金額</th>
+                                                        <th>摘要</th>
+                                                        <th>照合状況</th>
+                                                        <th>信頼度</th>
+                                                        <th>操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="match in filteredMatches" :key="match.id">
+                                                        <tr>
+                                                            <td><span class="font-monospace" x-text="match.bankTransactionId"></span></td>
+                                                            <td x-text="formatDate(match.transactionDate)"></td>
+                                                            <td x-text="formatCurrency(match.amount)"></td>
+                                                            <td x-text="match.description"></td>
+                                                            <td>
+                                                                <span class="status-badge" :class="getReconciliationClass(match.status)" x-text="getReconciliationText(match.status)"></span>
+                                                            </td>
+                                                            <td>
+                                                                <div class="match-confidence" x-show="match.confidence">
+                                                                    <div class="confidence-bar">
+                                                                        <div class="confidence-fill" 
+                                                                             :class="getConfidenceClass(match.confidence)"
+                                                                             :style="`width: ${match.confidence}%`"></div>
+                                                                    </div>
+                                                                    <span x-text="`${match.confidence}%`"></span>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="btn-group btn-group-sm">
+                                                                    <button class="btn btn-outline-primary" @click="reviewMatch(match.id)" title="確認">
+                                                                        <i class="bi bi-eye"></i>
+                                                                    </button>
+                                                                    <button class="btn btn-outline-success" @click="approveMatch(match.id)" title="承認" x-show="match.status === 'MANUAL_REVIEW'">
+                                                                        <i class="bi bi-check"></i>
+                                                                    </button>
+                                                                    <button class="btn btn-outline-danger" @click="rejectMatch(match.id)" title="却下" x-show="match.status === 'MANUAL_REVIEW'">
+                                                                        <i class="bi bi-x"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-4">
+                                <!-- 照合統計 -->
+                                <div class="progress-tracker">
+                                    <h6><i class="bi bi-pie-chart me-2"></i>照合統計</h6>
+                                    <div class="mb-3">
+                                        <canvas id="reconciliationChart" width="200" height="200"></canvas>
+                                    </div>
+                                    <div class="small">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>照合済み</span>
+                                            <span x-text="reconciliationStats.matched"></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>一部照合</span>
+                                            <span x-text="reconciliationStats.partiallyMatched"></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>未照合</span>
+                                            <span x-text="reconciliationStats.unmatched"></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>要確認</span>
+                                            <span x-text="reconciliationStats.manualReview"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- MoneyForward連携タブ -->
+                    <div x-show="activeTab === 'moneyforward'">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-cloud me-2"></i>MoneyForward同期管理</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- 同期設定 -->
+                                        <div class="row mb-4">
+                                            <div class="col-md-6">
+                                                <label class="form-label">同期対象</label>
+                                                <select class="form-select" x-model="syncConfig.syncType">
+                                                    <option value="ALL">すべて</option>
+                                                    <option value="INVOICES">請求書のみ</option>
+                                                    <option value="PAYMENTS">入金のみ</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">同期期間</label>
+                                                <select class="form-select" x-model="syncConfig.period">
+                                                    <option value="today">今日</option>
+                                                    <option value="week">今週</option>
+                                                    <option value="month">今月</option>
+                                                    <option value="custom">カスタム</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="d-flex gap-2 mb-4">
+                                            <button class="btn btn-primary" @click="startSync()" :disabled="syncStatus.isRunning">
+                                                <i class="bi bi-cloud-upload me-1"></i>同期開始
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @click="checkSyncStatus()">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>状況確認
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- 同期履歴 -->
+                                        <h6><i class="bi bi-clock-history me-2"></i>同期履歴</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>開始時刻</th>
+                                                        <th>対象</th>
+                                                        <th>件数</th>
+                                                        <th>ステータス</th>
+                                                        <th>実行時間</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="sync in syncHistory" :key="sync.id">
+                                                        <tr>
+                                                            <td x-text="formatDateTime(sync.startedAt)"></td>
+                                                            <td x-text="getSyncTypeText(sync.syncType)"></td>
+                                                            <td x-text="sync.processedCount"></td>
+                                                            <td>
+                                                                <span class="status-badge" :class="getSyncStatusClass(sync.status)" x-text="getSyncStatusText(sync.status)"></span>
+                                                            </td>
+                                                            <td x-text="sync.duration"></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-4">
+                                <!-- 同期進捗追跡 -->
+                                <div class="progress-tracker">
+                                    <h6><i class="bi bi-list-check me-2"></i>同期進捗</h6>
+                                    <div class="sync-timeline">
+                                        <div class="sync-step" :class="{ completed: syncProgress.dataExtraction, active: syncProgress.current === 'dataExtraction' }">
+                                            <strong>データ抽出</strong>
+                                            <div class="small text-muted">対象データの抽出</div>
+                                        </div>
+                                        <div class="sync-step" :class="{ completed: syncProgress.validation, active: syncProgress.current === 'validation' }">
+                                            <strong>データ検証</strong>
+                                            <div class="small text-muted">整合性チェック</div>
+                                        </div>
+                                        <div class="sync-step" :class="{ completed: syncProgress.upload, active: syncProgress.current === 'upload' }">
+                                            <strong>MFアップロード</strong>
+                                            <div class="small text-muted">MoneyForwardへ送信</div>
+                                        </div>
+                                        <div class="sync-step" :class="{ completed: syncProgress.confirmation, active: syncProgress.current === 'confirmation' }">
+                                            <strong>同期確認</strong>
+                                            <div class="small text-muted">結果確認・完了</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 与信管理タブ -->
+                    <div x-show="activeTab === 'credit'">
+                        <div class="row">
+                            <template x-for="customer in customers" :key="customer.id">
+                                <div class="col-lg-6 col-xl-4 mb-4">
+                                    <div class="card">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0" x-text="customer.name"></h6>
+                                            <span class="badge" :class="getCreditRatingClass(customer.creditRating)" x-text="customer.creditRating"></span>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="credit-gauge mb-3">
+                                                <canvas :id="`creditGauge${customer.id}`" width="120" height="60"></canvas>
+                                                <div class="text-center mt-2">
+                                                    <div class="h6" x-text="formatCurrency(customer.availableCredit)"></div>
+                                                    <div class="small text-muted">利用可能与信</div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="small mb-2">
+                                                <div class="d-flex justify-content-between">
+                                                    <span>与信限度額</span>
+                                                    <span x-text="formatCurrency(customer.creditLimit)"></span>
+                                                </div>
+                                                <div class="d-flex justify-content-between">
+                                                    <span>現在残高</span>
+                                                    <span x-text="formatCurrency(customer.currentBalance)"></span>
+                                                </div>
+                                                <div class="d-flex justify-content-between">
+                                                    <span>支払条件</span>
+                                                    <span x-text="customer.paymentTerms"></span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="d-flex gap-1 mt-3">
+                                                <button class="btn btn-outline-primary btn-sm flex-fill" @click="reviewCredit(customer.id)">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary btn-sm flex-fill" @click="updateCredit(customer.id)">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('paymentManagement', () => ({
+                activeTab: 'payments',
+                selectedPayments: [],
+                
+                filters: {
+                    keyword: '',
+                    paymentMethod: '',
+                    reconciliationStatus: '',
+                    paymentDateFrom: '',
+                    paymentDateTo: ''
+                },
+                
+                reconciliationFilter: {
+                    status: ''
+                },
+                
+                uploadConfig: {
+                    file: null,
+                    accountId: '',
+                    statementDate: ''
+                },
+                
+                syncConfig: {
+                    syncType: 'ALL',
+                    period: 'month'
+                },
+                
+                syncStatus: {
+                    isRunning: false,
+                    message: ''
+                },
+                
+                syncProgress: {
+                    dataExtraction: false,
+                    validation: false,
+                    upload: false,
+                    confirmation: false,
+                    current: ''
+                },
+                
+                stats: {
+                    totalReceived: 18500000,
+                    unmatchedCount: 12,
+                    reconciliationRate: 96,
+                    creditLimit: 50000000
+                },
+                
+                reconciliationStats: {
+                    matched: 156,
+                    partiallyMatched: 8,
+                    unmatched: 12,
+                    manualReview: 4
+                },
+                
+                payments: [
+                    {
+                        id: 'dd3a6c88-a1ae-29l2-259e-22ee33228888',
+                        invoiceId: '550e8400-e29b-41d4-a716-446655440100',
+                        invoiceNumber: 'INV-2025-001',
+                        customerId: '660f9511-f39c-52e5-b827-557766551111',
+                        customerName: '株式会社ABC商事',
+                        projectId: '123e4567-e89b-12d3-a456-426614174000',
+                        projectName: 'ECサイトリニューアル',
+                        amount: {
+                            amount: 800000,
+                            currency: 'JPY'
+                        },
+                        paymentDate: '2025-06-01T00:00:00',
+                        paymentMethod: 'BANK_TRANSFER',
+                        bankAccountId: 'bb1e4a66-e8eb-07j0-037c-00cc11006666',
+                        transactionId: 'TXN-20250601-001',
+                        reconciliationInfo: {
+                            status: 'MATCHED',
+                            matchConfidence: 98,
+                            bankTransactionId: 'BANK-20250601-001',
+                            reconciliationDate: '2025-06-01T15:30:00'
+                        },
+                        moneyForwardStatus: 'synced'
+                    },
+                    {
+                        id: 'ee4b6b99-b2bc-30m3-360f-33ff44339999',
+                        invoiceId: '770a0622-a4ad-63f6-c938-668877662000',
+                        invoiceNumber: 'INV-2025-002',
+                        customerId: '880b1733-b5be-74g7-d049-779988773000',
+                        customerName: 'XYZ製造株式会社',
+                        projectId: '456e7890-e89b-12d3-a456-426614174001',
+                        projectName: '基幹システム更改',
+                        amount: {
+                            amount: 600000,
+                            currency: 'JPY'
+                        },
+                        paymentDate: '2025-05-30T00:00:00',
+                        paymentMethod: 'BANK_TRANSFER',
+                        bankAccountId: 'bb1e4a66-e8eb-07j0-037c-00cc11006666',
+                        transactionId: 'TXN-20250530-001',
+                        reconciliationInfo: {
+                            status: 'PARTIALLY_MATCHED',
+                            matchConfidence: 75,
+                            bankTransactionId: 'BANK-20250530-001',
+                            reconciliationDate: '2025-05-30T16:00:00'
+                        },
+                        moneyForwardStatus: 'pending'
+                    },
+                    {
+                        id: 'ff5c7caa-c3cd-41n4-471g-44gg55440000',
+                        invoiceId: '990c2844-c6cf-85h8-e15a-88aa99884000',
+                        invoiceNumber: 'INV-2025-003',
+                        customerId: 'aa0d3955-d7da-96i9-f26b-99bb00995555',
+                        customerName: 'テクノロジー株式会社',
+                        projectId: '789e0123-e89b-12d3-a456-426614174002',
+                        projectName: 'モバイルアプリ開発',
+                        amount: {
+                            amount: 950000,
+                            currency: 'JPY'
+                        },
+                        paymentDate: '2025-05-28T00:00:00',
+                        paymentMethod: 'CREDIT_CARD',
+                        bankAccountId: null,
+                        transactionId: 'TXN-20250528-001',
+                        reconciliationInfo: {
+                            status: 'UNMATCHED',
+                            matchConfidence: 0,
+                            bankTransactionId: null,
+                            reconciliationDate: null
+                        },
+                        moneyForwardStatus: 'error'
+                    }
+                ],
+                
+                reconciliationMatches: [
+                    {
+                        id: 'aab0e4c7-d8e9-3fa2-472h-55hh66551111',
+                        bankTransactionId: 'BANK-20250601-001',
+                        invoiceId: '550e8400-e29b-41d4-a716-446655440100',
+                        transactionDate: '2025-06-01T00:00:00',
+                        amount: {
+                            amount: 800000,
+                            currency: 'JPY'
+                        },
+                        description: 'カ）ABC商事',
+                        matchStatus: 'MATCHED',
+                        confidence: 98,
+                        reconciliationDate: '2025-06-01T15:30:00'
+                    },
+                    {
+                        id: 'bb1f5d8e-e9fa-40b3-583i-66ii77662222',
+                        bankTransactionId: 'BANK-20250530-002',
+                        invoiceId: '770a0622-a4ad-63f6-c938-668877662000',
+                        transactionDate: '2025-05-30T00:00:00',
+                        amount: {
+                            amount: 600000,
+                            currency: 'JPY'
+                        },
+                        description: 'XYZ製造カブシキガイシャ',
+                        matchStatus: 'MANUAL_REVIEW',
+                        confidence: 65,
+                        reconciliationDate: null
+                    }
+                ],
+                
+                syncHistory: [
+                    {
+                        id: 'cc2g6e9f-fab0-51c4-694j-77jj88773333',
+                        jobId: 'job-20250601-001',
+                        startedAt: '2025-06-01T09:00:00',
+                        completedAt: '2025-06-01T09:02:30',
+                        syncType: 'ALL',
+                        processedCount: 45,
+                        successCount: 43,
+                        errorCount: 2,
+                        status: 'COMPLETED',
+                        duration: 150,
+                        errorDetails: []
+                    },
+                    {
+                        id: 'dd3h7fa0-0bc1-62d5-705k-88kk99884444',
+                        jobId: 'job-20250531-002',
+                        startedAt: '2025-05-31T18:00:00',
+                        completedAt: '2025-05-31T18:01:45',
+                        syncType: 'INVOICES',
+                        processedCount: 28,
+                        successCount: 28,
+                        errorCount: 0,
+                        status: 'COMPLETED',
+                        duration: 105,
+                        errorDetails: []
+                    }
+                ],
+                
+                bankAccounts: [
+                    { 
+                        id: 'bb1e4a66-e8eb-07j0-037c-00cc11006666', 
+                        bankName: '三菱UFJ銀行', 
+                        branchName: '虎ノ門支店',
+                        accountType: '普通',
+                        accountNumber: '1234567',
+                        accountHolderName: 'カ）エスイーエススステムズ',
+                        isDefault: true
+                    },
+                    { 
+                        id: 'cc2f5b77-f0fd-18k1-148d-11dd22117777', 
+                        bankName: 'みずほ銀行', 
+                        branchName: '新橋支店',
+                        accountType: '当座',
+                        accountNumber: '9876543',
+                        accountHolderName: 'カ）エスイーエススステムズ',
+                        isDefault: false
+                    }
+                ],
+                
+                customers: [
+                    {
+                        id: '660f9511-f39c-52e5-b827-557766551111',
+                        name: '株式会社ABC商事',
+                        creditLimit: {
+                            amount: 5000000,
+                            currency: 'JPY'
+                        },
+                        currentBalance: {
+                            amount: 1200000,
+                            currency: 'JPY'
+                        },
+                        availableCredit: {
+                            amount: 3800000,
+                            currency: 'JPY'
+                        },
+                        creditRating: 'AAA',
+                        riskLevel: 'LOW',
+                        paymentTerms: '月末締翌月末払い',
+                        paymentTermsDays: 30
+                    },
+                    {
+                        id: '880b1733-b5be-74g7-d049-779988773000',
+                        name: 'XYZ製造株式会社',
+                        creditLimit: {
+                            amount: 8000000,
+                            currency: 'JPY'
+                        },
+                        currentBalance: {
+                            amount: 2500000,
+                            currency: 'JPY'
+                        },
+                        availableCredit: {
+                            amount: 5500000,
+                            currency: 'JPY'
+                        },
+                        creditRating: 'AA',
+                        riskLevel: 'LOW',
+                        paymentTerms: '20日締翌月10日払い',
+                        paymentTermsDays: 20
+                    }
+                ],
+                
+                get filteredPayments() {
+                    return this.payments.filter(payment => {
+                        if (this.filters.keyword && !payment.customerName.toLowerCase().includes(this.filters.keyword.toLowerCase()) && 
+                            !payment.invoiceNumber.toLowerCase().includes(this.filters.keyword.toLowerCase())) {
+                            return false;
+                        }
+                        if (this.filters.paymentMethod && payment.paymentMethod !== this.filters.paymentMethod) {
+                            return false;
+                        }
+                        if (this.filters.reconciliationStatus && payment.reconciliationStatus !== this.filters.reconciliationStatus) {
+                            return false;
+                        }
+                        return true;
+                    });
+                },
+                
+                get filteredMatches() {
+                    return this.reconciliationMatches.filter(match => {
+                        if (this.reconciliationFilter.status && match.status !== this.reconciliationFilter.status) {
+                            return false;
+                        }
+                        return true;
+                    });
+                },
+                
+                init() {
+                    this.initCharts();
+                },
+                
+                initCharts() {
+                    // 照合統計チャート
+                    const ctx = document.getElementById('reconciliationChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['照合済み', '一部照合', '未照合', '要確認'],
+                            datasets: [{
+                                data: [
+                                    this.reconciliationStats.matched,
+                                    this.reconciliationStats.partiallyMatched,
+                                    this.reconciliationStats.unmatched,
+                                    this.reconciliationStats.manualReview
+                                ],
+                                backgroundColor: ['#198754', '#ffc107', '#dc3545', '#0dcaf0']
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                    
+                    // 与信ゲージチャート（顧客ごと）
+                    this.customers.forEach(customer => {
+                        setTimeout(() => {
+                            this.createCreditGauge(customer);
+                        }, 100);
+                    });
+                },
+                
+                createCreditGauge(customer) {
+                    const canvas = document.getElementById(`creditGauge${customer.id}`);
+                    if (!canvas) return;
+                    
+                    const ctx = canvas.getContext('2d');
+                    const usageRatio = customer.currentBalance / customer.creditLimit;
+                    
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            datasets: [{
+                                data: [usageRatio * 100, (1 - usageRatio) * 100],
+                                backgroundColor: [
+                                    usageRatio > 0.8 ? '#dc3545' : usageRatio > 0.6 ? '#ffc107' : '#198754',
+                                    '#e9ecef'
+                                ],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            circumference: 180,
+                            rotation: 270,
+                            responsive: false,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                },
+                
+                getReconciliationClass(status) {
+                    const classes = {
+                        'MATCHED': 'bg-success',
+                        'PARTIALLY_MATCHED': 'bg-warning',
+                        'UNMATCHED': 'bg-danger',
+                        'MANUAL_REVIEW': 'bg-info',
+                        'APPROVED': 'bg-primary',
+                        'REJECTED': 'bg-secondary'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                getReconciliationText(status) {
+                    const texts = {
+                        'MATCHED': '照合済み',
+                        'PARTIALLY_MATCHED': '一部照合',
+                        'UNMATCHED': '未照合',
+                        'MANUAL_REVIEW': '要確認',
+                        'APPROVED': '承認済み',
+                        'REJECTED': '却下'
+                    };
+                    return texts[status] || status;
+                },
+                
+                getReconciliationIcon(status) {
+                    const icons = {
+                        'MATCHED': 'bi-check-circle',
+                        'PARTIALLY_MATCHED': 'bi-exclamation-triangle',
+                        'UNMATCHED': 'bi-x-circle',
+                        'MANUAL_REVIEW': 'bi-question-circle',
+                        'APPROVED': 'bi-check-circle',
+                        'REJECTED': 'bi-x-circle'
+                    };
+                    return icons[status] || 'bi-circle';
+                },
+                
+                getPaymentMethodText(method) {
+                    const texts = {
+                        'BANK_TRANSFER': '銀行振込',
+                        'CREDIT_CARD': 'クレジットカード',
+                        'CHECK': '小切手',
+                        'CASH': '現金',
+                        'OTHER': 'その他'
+                    };
+                    return texts[method] || method;
+                },
+                
+                getMoneyForwardClass(status) {
+                    const classes = {
+                        'synced': 'mf-synced',
+                        'pending': 'mf-pending',
+                        'error': 'mf-error'
+                    };
+                    return classes[status] || 'mf-pending';
+                },
+                
+                getMoneyForwardIcon(status) {
+                    const icons = {
+                        'synced': 'bi-cloud-check',
+                        'pending': 'bi-cloud-upload',
+                        'error': 'bi-cloud-slash'
+                    };
+                    return icons[status] || 'bi-cloud';
+                },
+                
+                getMoneyForwardText(status) {
+                    const texts = {
+                        'synced': 'MF同期済み',
+                        'pending': 'MF同期待ち',
+                        'error': 'MFエラー'
+                    };
+                    return texts[status] || '未同期';
+                },
+                
+                getConfidenceClass(confidence) {
+                    if (confidence >= 80) return 'confidence-high';
+                    if (confidence >= 60) return 'confidence-medium';
+                    return 'confidence-low';
+                },
+                
+                getCreditRatingClass(rating) {
+                    const classes = {
+                        'AAA': 'bg-success',
+                        'AA': 'bg-primary',
+                        'A': 'bg-info',
+                        'BBB': 'bg-warning',
+                        'BB': 'bg-warning',
+                        'B': 'bg-danger'
+                    };
+                    return classes[rating] || 'bg-secondary';
+                },
+                
+                getSyncTypeText(type) {
+                    const texts = {
+                        'ALL': 'すべて',
+                        'INVOICES': '請求書のみ',
+                        'PAYMENTS': '入金のみ'
+                    };
+                    return texts[type] || type;
+                },
+                
+                getSyncStatusClass(status) {
+                    const classes = {
+                        'COMPLETED': 'bg-success',
+                        'RUNNING': 'bg-primary',
+                        'FAILED': 'bg-danger',
+                        'CANCELLED': 'bg-secondary'
+                    };
+                    return classes[status] || 'bg-secondary';
+                },
+                
+                getSyncStatusText(status) {
+                    const texts = {
+                        'COMPLETED': '完了',
+                        'RUNNING': '実行中',
+                        'FAILED': '失敗',
+                        'CANCELLED': 'キャンセル'
+                    };
+                    return texts[status] || status;
+                },
+                
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('ja-JP', {
+                        style: 'currency',
+                        currency: 'JPY'
+                    }).format(amount);
+                },
+                
+                formatDate(dateStr) {
+                    return new Date(dateStr).toLocaleDateString('ja-JP');
+                },
+                
+                formatDateTime(dateStr) {
+                    return new Date(dateStr).toLocaleString('ja-JP');
+                },
+                
+                handleFileSelect(event) {
+                    this.uploadConfig.file = event.target.files[0];
+                },
+                
+                handleFileDrop(event) {
+                    event.target.classList.remove('dragover');
+                    this.uploadConfig.file = event.dataTransfer.files[0];
+                },
+                
+                startReconciliation() {
+                    console.log('照合開始', this.uploadConfig);
+                    alert('銀行明細の照合を開始しました。');
+                },
+                
+                previewFile() {
+                    console.log('ファイルプレビュー', this.uploadConfig.file);
+                },
+                
+                startSync() {
+                    this.syncStatus.isRunning = true;
+                    this.syncStatus.message = 'MoneyForward同期実行中...';
+                    
+                    // シミュレート同期プロセス
+                    setTimeout(() => {
+                        this.syncProgress.current = 'dataExtraction';
+                        this.syncProgress.dataExtraction = true;
+                    }, 1000);
+                    
+                    setTimeout(() => {
+                        this.syncProgress.current = 'validation';
+                        this.syncProgress.validation = true;
+                    }, 2000);
+                    
+                    setTimeout(() => {
+                        this.syncProgress.current = 'upload';
+                        this.syncProgress.upload = true;
+                    }, 3000);
+                    
+                    setTimeout(() => {
+                        this.syncProgress.current = 'confirmation';
+                        this.syncProgress.confirmation = true;
+                        this.syncStatus.isRunning = false;
+                        this.syncStatus.message = '';
+                        alert('MoneyForward同期が完了しました。');
+                    }, 4000);
+                },
+                
+                searchPayments() {
+                    console.log('入金検索実行', this.filters);
+                },
+                
+                resetFilters() {
+                    this.filters = {
+                        keyword: '',
+                        paymentMethod: '',
+                        reconciliationStatus: '',
+                        paymentDateFrom: '',
+                        paymentDateTo: ''
+                    };
+                },
+                
+                // その他のアクション
+                viewPayment(id) { console.log('入金詳細表示', id); },
+                editPayment(id) { console.log('入金編集', id); },
+                reconcilePayment(id) { console.log('照合実行', id); },
+                syncToMF(id) { console.log('MF同期', id); },
+                recordPayment() { console.log('入金記録'); },
+                uploadBankStatement() { console.log('銀行明細アップロード'); },
+                exportPayments() { console.log('エクスポート'); },
+                syncMoneyForward() { this.startSync(); },
+                bulkReconcile() { console.log('一括照合'); },
+                bulkSyncMF() { console.log('MF一括同期'); },
+                bulkExport() { console.log('一括エクスポート'); },
+                reviewMatch(id) { console.log('照合確認', id); },
+                approveMatch(id) { console.log('照合承認', id); },
+                rejectMatch(id) { console.log('照合却下', id); },
+                checkSyncStatus() { console.log('同期状況確認'); },
+                reviewCredit(id) { console.log('与信確認', id); },
+                updateCredit(id) { console.log('与信更新', id); }
+            }));
+        });
+    </script>
+</body>
+</html>
