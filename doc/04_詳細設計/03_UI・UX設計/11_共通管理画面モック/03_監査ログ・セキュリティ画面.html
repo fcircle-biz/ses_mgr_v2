@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ja" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SES業務システム - 監査ログ・セキュリティ管理">
+    <title>監査ログ・セキュリティ管理 - SES Manager</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    <!-- Custom CSS -->
+    <link href="../04_インタラクティブプロトタイプ/css/ses-theme.css" rel="stylesheet">
+    <link href="../04_インタラクティブプロトタイプ/css/components.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app" x-data="auditSecurity" x-init="init()">
+        <!-- Header -->
+        <header class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+            <div class="container-fluid">
+                <!-- Mobile menu toggle -->
+                <button class="btn btn-outline-secondary d-lg-none me-2" 
+                        type="button" 
+                        data-bs-toggle="offcanvas" 
+                        data-bs-target="#sidebar"
+                        aria-controls="sidebar">
+                    <i class="bi bi-list"></i>
+                </button>
+                
+                <!-- Logo -->
+                <a class="navbar-brand d-flex align-items-center" href="#" onclick="navigateToPage('dashboard')">
+                    <img src="../04_インタラクティブプロトタイプ/assets/images/logo.svg" alt="SES Manager" width="32" height="32" class="me-2">
+                    <span class="fw-bold">SES Manager</span>
+                </a>
+                
+                <!-- Search -->
+                <div class="flex-grow-1 mx-3 d-none d-md-block">
+                    <div class="input-group" style="max-width: 400px;">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control bg-light border-start-0" 
+                               placeholder="ログ、ユーザーで検索..."
+                               x-model="searchQuery">
+                    </div>
+                </div>
+                
+                <!-- User menu -->
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" 
+                            data-bs-toggle="dropdown">
+                        <img src="../04_インタラクティブプロトタイプ/assets/images/user-avatar.png" 
+                             alt="プロフィール" 
+                             width="24" 
+                             height="24" 
+                             class="rounded-circle me-1">
+                        <span>管理者</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>プロフィール</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>設定</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-box-arrow-right me-2"></i>ログアウト</a></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Sidebar -->
+        <nav class="sidebar offcanvas-lg offcanvas-start" id="sidebar" tabindex="-1">
+            <!-- Sidebar header (mobile) -->
+            <div class="offcanvas-header d-lg-none">
+                <h5 class="offcanvas-title">
+                    <img src="../04_インタラクティブプロトタイプ/assets/images/logo.svg" alt="SES Manager" width="24" height="24" class="me-2">
+                    SES Manager
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebar"></button>
+            </div>
+            
+            <!-- Sidebar body -->
+            <div class="offcanvas-body">
+                <ul class="nav flex-column">
+                    <!-- Dashboard -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('dashboard')">
+                            <i class="bi bi-speedometer2 nav-icon"></i>
+                            <span class="nav-text">ダッシュボード</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Engineers -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('engineers')">
+                            <i class="bi bi-people nav-icon"></i>
+                            <span class="nav-text">技術者管理</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Projects -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('projects')">
+                            <i class="bi bi-briefcase nav-icon"></i>
+                            <span class="nav-text">案件管理</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Matching -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="navigateToPage('matching')">
+                            <i class="bi bi-shuffle nav-icon"></i>
+                            <span class="nav-text">マッチング</span>
+                        </a>
+                    </li>
+                    
+                    <!-- Admin Menu -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#adminSubmenu" data-bs-toggle="collapse" aria-expanded="true" class="active">
+                            <i class="bi bi-gear nav-icon"></i>
+                            <span class="nav-text">システム管理</span>
+                            <i class="bi bi-chevron-down nav-arrow ms-auto"></i>
+                        </a>
+                        <div class="collapse show" id="adminSubmenu">
+                            <ul class="nav flex-column submenu">
+                                <li class="nav-item">
+                                    <a class="nav-link submenu-link" href="#" onclick="navigateToPage('admin/users')">
+                                        ユーザー管理
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link submenu-link" href="#" onclick="navigateToPage('admin/settings')">
+                                        システム設定
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link submenu-link active" href="#">
+                                        監査ログ
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+        
+        <!-- Main content -->
+        <main class="main-content">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="breadcrumb-container">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="#" onclick="navigateToPage('dashboard')">ダッシュボード</a></li>
+                    <li class="breadcrumb-item">システム管理</li>
+                    <li class="breadcrumb-item active" aria-current="page">監査ログ</li>
+                </ol>
+            </nav>
+            
+            <!-- Page content -->
+            <div class="page-content">
+                <!-- Page header -->
+                <div class="page-header mb-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h1 class="h3 mb-2">監査ログ・セキュリティ管理</h1>
+                            <p class="text-muted mb-0">システムの監査ログとセキュリティイベントの監視・管理を行います</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" @click="exportLogs()">
+                                <i class="bi bi-download me-1"></i>ログエクスポート
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Security Stats -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="card kpi-card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="stats-icon bg-primary text-white rounded-3 me-3">
+                                        <i class="bi bi-file-text-fill"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="stats-value h4 mb-0" x-text="stats.totalLogs">1,247</div>
+                                        <div class="stats-label text-muted small">総ログ数（今日）</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-6 col-md-3">
+                        <div class="card kpi-card warning">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="stats-icon bg-warning text-white rounded-3 me-3">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="stats-value h4 mb-0" x-text="stats.securityAlerts">3</div>
+                                        <div class="stats-label text-muted small">セキュリティアラート</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-6 col-md-3">
+                        <div class="card kpi-card danger">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="stats-icon bg-danger text-white rounded-3 me-3">
+                                        <i class="bi bi-shield-exclamation"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="stats-value h4 mb-0" x-text="stats.failedLogins">12</div>
+                                        <div class="stats-label text-muted small">ログイン失敗（24h）</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-6 col-md-3">
+                        <div class="card kpi-card success">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="stats-icon bg-success text-white rounded-3 me-3">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="stats-value h4 mb-0" x-text="stats.activeUsers">22</div>
+                                        <div class="stats-label text-muted small">アクティブユーザー</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">アクセスパターン分析</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="accessPatternChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">ログイン成功率</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="loginSuccessChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-4" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" 
+                                id="audit-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#audit" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="audit" 
+                                aria-selected="true">
+                            <i class="bi bi-file-text me-1"></i>監査ログ
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" 
+                                id="security-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#security" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="security" 
+                                aria-selected="false">
+                            <i class="bi bi-shield-check me-1"></i>セキュリティイベント
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" 
+                                id="access-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#access" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="access" 
+                                aria-selected="false">
+                            <i class="bi bi-door-open me-1"></i>アクセスログ
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- Audit Logs -->
+                    <div class="tab-pane fade show active" id="audit" role="tabpanel" aria-labelledby="audit-tab">
+                        <!-- Filter Panel -->
+                        <div class="filter-panel mb-4">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">ログレベル</label>
+                                    <select class="form-select" x-model="filters.logLevel">
+                                        <option value="">すべて</option>
+                                        <option value="INFO">情報</option>
+                                        <option value="WARN">警告</option>
+                                        <option value="ERROR">エラー</option>
+                                        <option value="CRITICAL">重大</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">操作タイプ</label>
+                                    <select class="form-select" x-model="filters.action">
+                                        <option value="">すべて</option>
+                                        <option value="LOGIN">ログイン</option>
+                                        <option value="LOGOUT">ログアウト</option>
+                                        <option value="CREATE">作成</option>
+                                        <option value="UPDATE">更新</option>
+                                        <option value="DELETE">削除</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">期間</label>
+                                    <select class="form-select" x-model="filters.period">
+                                        <option value="today">今日</option>
+                                        <option value="week">過去1週間</option>
+                                        <option value="month">過去1ヶ月</option>
+                                        <option value="custom">カスタム</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <button class="btn btn-primary w-100" @click="filterLogs()">
+                                        <i class="bi bi-funnel me-1"></i>フィルター
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Audit Logs Table -->
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>監査ログ (<span x-text="filteredAuditLogs.length">15</span>件)</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" @click="refreshLogs()">
+                                        <i class="bi bi-arrow-clockwise"></i> 更新
+                                    </button>
+                                    <button class="btn btn-outline-secondary" @click="exportLogs()">
+                                        <i class="bi bi-download"></i> エクスポート
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">時刻</th>
+                                            <th scope="col">レベル</th>
+                                            <th scope="col">ユーザー</th>
+                                            <th scope="col">操作</th>
+                                            <th scope="col" class="d-none d-lg-table-cell">詳細</th>
+                                            <th scope="col" class="d-none d-md-table-cell">IP アドレス</th>
+                                            <th scope="col">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="log in filteredAuditLogs" :key="log.id">
+                                            <tr>
+                                                <td>
+                                                    <span class="text-nowrap" x-text="formatDateTime(log.timestamp)"></span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge" 
+                                                          :class="getLogLevelClass(log.level)"
+                                                          x-text="log.level"></span>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <img :src="log.user.avatar || 'assets/images/default-avatar.png'" 
+                                                             class="rounded-circle me-2" 
+                                                             width="24" 
+                                                             height="24"
+                                                             :alt="log.user.name">
+                                                        <span x-text="log.user.name"></span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-info" x-text="log.action"></span>
+                                                </td>
+                                                <td class="d-none d-lg-table-cell">
+                                                    <span class="text-muted small" x-text="log.details"></span>
+                                                </td>
+                                                <td class="d-none d-md-table-cell">
+                                                    <code class="small" x-text="log.ipAddress"></code>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-outline-primary btn-sm" 
+                                                            @click="viewLogDetail(log)">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Events -->
+                    <div class="tab-pane fade" id="security" role="tabpanel" aria-labelledby="security-tab">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">セキュリティイベント</h6>
+                            </div>
+                            <div class="card-body">
+                                <template x-for="event in securityEvents" :key="event.id">
+                                    <div class="alert" 
+                                         :class="getSecurityEventClass(event.severity)"
+                                         role="alert">
+                                        <div class="d-flex align-items-start">
+                                            <div class="me-3">
+                                                <i :class="getSecurityEventIcon(event.type)" class="fs-4"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="alert-heading mb-1" x-text="event.title"></h6>
+                                                <p class="mb-2" x-text="event.description"></p>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-clock me-1"></i>
+                                                        <span x-text="formatDateTime(event.timestamp)"></span>
+                                                        <span class="ms-2">
+                                                            <i class="bi bi-geo-alt me-1"></i>
+                                                            <span x-text="event.ipAddress"></span>
+                                                        </span>
+                                                    </small>
+                                                    <div>
+                                                        <button class="btn btn-outline-primary btn-sm me-2" 
+                                                                @click="investigateEvent(event)">
+                                                            調査
+                                                        </button>
+                                                        <button class="btn btn-outline-secondary btn-sm" 
+                                                                @click="resolveEvent(event)">
+                                                            解決済み
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Access Logs -->
+                    <div class="tab-pane fade" id="access" role="tabpanel" aria-labelledby="access-tab">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">アクセスログ</h6>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">時刻</th>
+                                            <th scope="col">ユーザー</th>
+                                            <th scope="col">ページ</th>
+                                            <th scope="col" class="d-none d-md-table-cell">User Agent</th>
+                                            <th scope="col" class="d-none d-lg-table-cell">IP アドレス</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="access in accessLogs" :key="access.id">
+                                            <tr>
+                                                <td>
+                                                    <span class="text-nowrap" x-text="formatDateTime(access.timestamp)"></span>
+                                                </td>
+                                                <td x-text="access.user.name"></td>
+                                                <td>
+                                                    <code class="small" x-text="access.path"></code>
+                                                </td>
+                                                <td class="d-none d-md-table-cell">
+                                                    <span class="text-muted small" x-text="access.userAgent"></span>
+                                                </td>
+                                                <td class="d-none d-lg-table-cell">
+                                                    <code class="small" x-text="access.ipAddress"></code>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Scripts -->
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Audit Security Component -->
+    <script>
+        Alpine.data('auditSecurity', () => ({
+            // Stats
+            stats: {
+                totalLogs: 1247,
+                securityAlerts: 3,
+                failedLogins: 12,
+                activeUsers: 22
+            },
+            
+            // Data
+            auditLogs: [],
+            securityEvents: [],
+            accessLogs: [],
+            
+            // UI state
+            searchQuery: '',
+            filters: {
+                logLevel: '',
+                action: '',
+                period: 'today'
+            },
+            
+            // Initialize
+            init() {
+                this.loadData();
+                this.initializeCharts();
+            },
+            
+            // Mock data loading
+            loadData() {
+                this.auditLogs = [
+                    {
+                        id: 1,
+                        timestamp: '2025-06-01T10:30:00',
+                        level: 'INFO',
+                        user: { name: '管理者 太郎', avatar: null },
+                        action: 'LOGIN',
+                        details: 'システムにログインしました',
+                        ipAddress: '192.168.1.100'
+                    },
+                    {
+                        id: 2,
+                        timestamp: '2025-06-01T10:25:00',
+                        level: 'WARN',
+                        user: { name: '営業 花子', avatar: null },
+                        action: 'UPDATE',
+                        details: 'technician_001の情報を更新しました',
+                        ipAddress: '192.168.1.101'
+                    },
+                    {
+                        id: 3,
+                        timestamp: '2025-06-01T10:20:00',
+                        level: 'ERROR',
+                        user: { name: 'unknown', avatar: null },
+                        action: 'LOGIN',
+                        details: 'ログイン試行に失敗しました',
+                        ipAddress: '203.0.113.15'
+                    }
+                ];
+                
+                this.securityEvents = [
+                    {
+                        id: 1,
+                        type: 'SUSPICIOUS_LOGIN',
+                        severity: 'HIGH',
+                        title: '異常なログイン試行を検出',
+                        description: 'IP アドレス 203.0.113.15 から短時間で複数回のログイン失敗が発生しています。',
+                        timestamp: '2025-06-01T10:15:00',
+                        ipAddress: '203.0.113.15'
+                    },
+                    {
+                        id: 2,
+                        type: 'UNAUTHORIZED_ACCESS',
+                        severity: 'MEDIUM',
+                        title: '権限外アクセス試行',
+                        description: '一般ユーザーが管理者ページへのアクセスを試行しました。',
+                        timestamp: '2025-06-01T09:45:00',
+                        ipAddress: '192.168.1.105'
+                    }
+                ];
+                
+                this.accessLogs = [
+                    {
+                        id: 1,
+                        timestamp: '2025-06-01T10:30:00',
+                        user: { name: '管理者 太郎' },
+                        path: '/dashboard',
+                        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        ipAddress: '192.168.1.100'
+                    },
+                    {
+                        id: 2,
+                        timestamp: '2025-06-01T10:28:00',
+                        user: { name: '営業 花子' },
+                        path: '/engineers/list',
+                        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                        ipAddress: '192.168.1.101'
+                    }
+                ];
+            },
+            
+            // Computed properties
+            get filteredAuditLogs() {
+                return this.auditLogs.filter(log => {
+                    const matchesLevel = !this.filters.logLevel || log.level === this.filters.logLevel;
+                    const matchesAction = !this.filters.action || log.action === this.filters.action;
+                    const matchesSearch = !this.searchQuery || 
+                        log.user.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                        log.details.toLowerCase().includes(this.searchQuery.toLowerCase());
+                    
+                    return matchesLevel && matchesAction && matchesSearch;
+                });
+            },
+            
+            // Actions
+            filterLogs() {
+                // Trigger reactivity
+                this.$nextTick();
+            },
+            
+            refreshLogs() {
+                this.loadData();
+                alert('ログが更新されました');
+            },
+            
+            exportLogs() {
+                alert('監査ログをエクスポートします');
+            },
+            
+            viewLogDetail(log) {
+                alert(`ログ詳細:\n\n時刻: ${this.formatDateTime(log.timestamp)}\nユーザー: ${log.user.name}\n操作: ${log.action}\n詳細: ${log.details}\nIP: ${log.ipAddress}`);
+            },
+            
+            investigateEvent(event) {
+                alert(`セキュリティイベントの調査を開始します:\n${event.title}`);
+            },
+            
+            resolveEvent(event) {
+                if (confirm(`このセキュリティイベントを解決済みにしますか？\n${event.title}`)) {
+                    const index = this.securityEvents.findIndex(e => e.id === event.id);
+                    this.securityEvents.splice(index, 1);
+                    alert('セキュリティイベントが解決済みに設定されました');
+                }
+            },
+            
+            // Chart initialization
+            initializeCharts() {
+                this.$nextTick(() => {
+                    this.initAccessPatternChart();
+                    this.initLoginSuccessChart();
+                });
+            },
+            
+            initAccessPatternChart() {
+                const ctx = document.getElementById('accessPatternChart');
+                if (!ctx) return;
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['6:00', '9:00', '12:00', '15:00', '18:00', '21:00'],
+                        datasets: [{
+                            label: 'アクセス数',
+                            data: [12, 45, 78, 65, 34, 18],
+                            borderColor: '#0d6efd',
+                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            },
+            
+            initLoginSuccessChart() {
+                const ctx = document.getElementById('loginSuccessChart');
+                if (!ctx) return;
+                
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['成功', '失敗'],
+                        datasets: [{
+                            data: [88, 12],
+                            backgroundColor: ['#198754', '#dc3545'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            },
+            
+            // Utility methods
+            formatDateTime(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleString('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            },
+            
+            getLogLevelClass(level) {
+                const classes = {
+                    'INFO': 'bg-primary',
+                    'WARN': 'bg-warning',
+                    'ERROR': 'bg-danger',
+                    'CRITICAL': 'bg-dark'
+                };
+                return classes[level] || 'bg-secondary';
+            },
+            
+            getSecurityEventClass(severity) {
+                const classes = {
+                    'HIGH': 'alert-danger',
+                    'MEDIUM': 'alert-warning',
+                    'LOW': 'alert-info'
+                };
+                return classes[severity] || 'alert-secondary';
+            },
+            
+            getSecurityEventIcon(type) {
+                const icons = {
+                    'SUSPICIOUS_LOGIN': 'bi-shield-exclamation',
+                    'UNAUTHORIZED_ACCESS': 'bi-door-closed',
+                    'DATA_BREACH': 'bi-database-exclamation',
+                    'MALWARE': 'bi-bug'
+                };
+                return icons[type] || 'bi-exclamation-triangle';
+            }
+        }));
+        
+        // Navigation function
+        function navigateToPage(page) {
+            console.log(`Navigate to: ${page}`);
+        }
+    </script>
+</body>
+</html>
