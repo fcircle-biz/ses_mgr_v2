@@ -1,0 +1,32 @@
+rootProject.name = 'ses-manager'
+
+// Shared modules
+include 'shared-domain'
+include 'shared-security'
+include 'shared-events'
+include 'shared-utils'
+
+// Microservice modules
+include 'project-service'
+include 'engineer-service'
+include 'matching-service'
+include 'contract-service'
+include 'timesheet-service'
+include 'billing-service'
+include 'report-service'
+include 'notification-service'
+
+// Configure project locations
+project(':shared-domain').projectDir = file('shared/shared-domain')
+project(':shared-security').projectDir = file('shared/shared-security')
+project(':shared-events').projectDir = file('shared/shared-events')
+project(':shared-utils').projectDir = file('shared/shared-utils')
+
+project(':project-service').projectDir = file('services/project-service')
+project(':engineer-service').projectDir = file('services/engineer-service')
+project(':matching-service').projectDir = file('services/matching-service')
+project(':contract-service').projectDir = file('services/contract-service')
+project(':timesheet-service').projectDir = file('services/timesheet-service')
+project(':billing-service').projectDir = file('services/billing-service')
+project(':report-service').projectDir = file('services/report-service')
+project(':notification-service').projectDir = file('services/notification-service')
