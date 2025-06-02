@@ -56,6 +56,36 @@ docker-compose.override.yml
 # Gradle
 .gradle/
 !gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+gradle.properties
+/gradle.properties
+
+# Gradle Build Cache
+build/
+/build/
+**/build/
+
+# Gradle Daemon
+.gradle/daemon/
+.gradle/wrapper/dists/
+
+# Gradle Checksums and Caches
+.gradle/checksums/
+.gradle/buildOutputCleanup/
+.gradle/file-system.probe
+.gradle/*/executionHistory/
+.gradle/*/fileHashes/
+.gradle/*/dependencies-accessors/
+
+# Gradle Compiled Classes
+**/build/classes/
+**/build/libs/
+**/build/tmp/
+**/build/test-results/
+**/build/reports/
+
+# Gradle Wrapper Downloads
+gradle/wrapper/gradle-wrapper.jar.tmp
 
 # Maven
 !.mvn/wrapper/maven-wrapper.jar
